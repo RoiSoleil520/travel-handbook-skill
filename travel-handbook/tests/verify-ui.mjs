@@ -440,7 +440,7 @@ try {
     await mapLink(page.locator('.reference-card .location-actions a'), 'google', 'Tokyo Station Hotel');
   });
 
-  await scenario('flight, train and self-drive arrivals retain passenger details, roles and maps', 'full', departure - 86400000, async page => {
+  await scenario('flight, train and self-drive arrivals retain passenger details, roles and maps', 'full', departure - 190 * 86400000, async page => {
     await tab(page, 'timeline');
     const transport = ['flight', 'train', 'drive'].map(kind => {
       const entry = Object.entries(model.journey[`${kind}s`]).find(([id]) => firstDay.events.some(event => event.id === id));
@@ -508,7 +508,7 @@ try {
     for (const theme of ['green', 'dark']) {
       await themes(page); await chooseTheme(page, theme);
       await page.keyboard.press('Escape');
-      for (const width of [320, 390, 1440]) {
+      for (const width of [320, 390, 600, 768, 1024, 1440]) {
         await page.setViewportSize({width, height: 844});
         await noOverflow(page, `${theme} transport at ${width}`);
         const timesFit = await card('train').locator('.train-stop > strong').evaluateAll(nodes => nodes.every(node => {
@@ -529,7 +529,25 @@ try {
           assert.deepEqual(await cardStyle(card(kind)), flightStyle, `${kind} uses the same dark card surface and corners as the flight`);
           const fits = await card(kind).evaluate(node => node.scrollWidth <= node.clientWidth + 1);
           assert.ok(fits, `${kind} contents fit ${width}px`);
-          if (screenshotDir && width === 390) await card(kind).screenshot({path: join(screenshotDir, `transport-${kind}-${theme}-390.png`)});
+          if (screenshotDir && [390, 600].includes(width)) await card(kind).screenshot({path: join(screenshotDir, `transport-${kind}-${theme}-${width}.png`), style: '.floating-tools { visibility: hidden !important; }'});
+          if (kind !== 'drive') {
+            const layout = await card(kind).locator('.transport-countdown').evaluate(node => {
+              const label = node.querySelector(':scope > span');
+              const text = document.createRange();
+              text.selectNodeContents(label);
+              const bounds = element => {
+                const {left, right, top, bottom} = element.getBoundingClientRect();
+                return {left, right, top, bottom};
+              };
+              return {lines: text.getClientRects().length, card: bounds(node.closest('.transport-card')), parts: [...node.children].map(bounds)};
+            });
+            assert.equal(layout.lines, 1, `${kind} countdown label stays on one line at ${width}px`);
+            assert.equal(layout.parts.length, 3, 'Countdown has a label, clock and status');
+            for (const [index, part] of layout.parts.entries()) {
+              assert.ok(part.left >= layout.card.left && part.right <= layout.card.right + 1 && part.top >= layout.card.top && part.bottom <= layout.card.bottom + 1, `${kind} countdown part ${index} fits its card at ${width}px`);
+              if (index) assert.ok(layout.parts[index - 1].bottom <= part.top + 1, `${kind} countdown label, clock and status stack without overlap at ${width}px`);
+            }
+          }
         }
         for (const [kind, text] of [['train', '.ground-note'], ['drive', '.ground-note'], ['drive', '.drive-pickup']]) {
           const surface = `.timeline .${kind}-card`;
