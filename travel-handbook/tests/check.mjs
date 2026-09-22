@@ -13,6 +13,7 @@ const output = await mkdtemp(join(tmpdir(), 'travel-handbook-check-'));
 try {
   const plain = normalize(minimal);
   assert.equal(plain.trip.meta.theme, 'green', 'Omitted theme must default to green');
+  assert.equal(plain.trip.meta.mapProvider, 'amap');
   assert.equal(plain.trip.days.length, 1);
   assert.equal(plain.trip.days[0].events[0].start, undefined, 'Unknown times must stay unknown');
   assert.equal(plain.journey.dailyStay[0].map, '');
@@ -25,6 +26,30 @@ try {
   const reject = (change, message) => {
     const input = structuredClone(sample); change(input); assert.throws(() => normalize(input), message);
   };
+  for (const mapProvider of ['unknown', '', null, false, {}, []]) {
+    reject(input => input.mapProvider = mapProvider, /mapProvider/);
+  }
+  for (const timezone of ['Asia/Shanghai', 'Asia/Urumqi', 'Asia/Chongqing', 'PRC']) {
+    assert.equal(normalize({...minimal, timezone}).trip.meta.mapProvider, 'amap');
+  }
+  for (const timezone of ['Asia/Tokyo', 'Asia/Singapore', 'Europe/Paris']) {
+    assert.equal(normalize({...minimal, timezone}).trip.meta.mapProvider, 'google');
+  }
+  const mapsInput = {...minimal, mapProvider: 'google', days: [{city: '杭州', zone: 'Asia/Shanghai', stay: {map: '杭州西湖'}, events: [{id: 'maps', title: '跨境安排', zone: 'Asia/Tokyo', place: {query: 'Tokyo Station'}, hotel: {name: 'Tokyo hotel'}, transfer: {origin: 'Tokyo Station', destination: 'Tokyo hotel'}}]}]};
+  const maps = normalize(mapsInput);
+  assert.equal(maps.trip.meta.mapProvider, 'google');
+  assert.equal(maps.trip.days[0].mapProvider, 'amap', 'A day with its own local zone chooses its local map');
+  assert.equal(maps.journey.dailyStay[0].mapProvider, 'amap');
+  assert.equal(maps.trip.days[0].events[0].mapProvider, 'google');
+  for (const location of [maps.spots[0], maps.journey.hotels.maps, maps.journey.transfers.maps]) assert.equal(location.mapProvider, 'google');
+  assert.equal(normalize({...minimal, mapProvider: 'google'}).trip.days[0].mapProvider, 'google', 'Explicit provider inherits without a local zone override');
+  for (const target of [mapsInput.days[0], mapsInput.days[0].stay, mapsInput.days[0].events[0], mapsInput.days[0].events[0].place, mapsInput.days[0].events[0].hotel, mapsInput.days[0].events[0].transfer]) {
+    target.mapProvider = 'invalid';
+    assert.throws(() => normalize(mapsInput), /mapProvider/, 'Nested provider overrides must be validated');
+    target.mapProvider = 'amap';
+  }
+  const overridden = normalize(mapsInput);
+  for (const location of [overridden.spots[0], overridden.journey.hotels.maps, overridden.journey.transfers.maps, overridden.journey.dailyStay[0]]) assert.equal(location.mapProvider, 'amap');
   for (const theme of ['unknown', '', 'toString', '__proto__', null, 42, true, [], {}]) {
     reject(input => input.theme = theme, /theme|主题|字符串/);
   }
@@ -61,6 +86,8 @@ try {
   assert.equal(flightEvent.start, '08:00');
   assert.equal(flightEvent.endZone, 'Asia/Tokyo');
   assert.equal(flight.journey.flights[flightEvent.id].status, '待确认');
+  assert.equal(flight.journey.flights[flightEvent.id].depart.mapProvider, 'amap');
+  assert.equal(flight.journey.flights[flightEvent.id].arrival.mapProvider, 'google', 'International flight endpoints choose maps independently');
   assert.equal(globalThis.TripTime.bounds(flightEvent, flight.trip.days[0].date).end - globalThis.TripTime.bounds(flightEvent, flight.trip.days[0].date).start, 10800000);
 
   sample.title = '<script>alert("sample")</script>';
@@ -83,5 +110,5 @@ try {
   assert.equal(await readFile(join(output, 'images/assets/custom/photo.png'), 'utf8'), 'demo image bytes');
   await symlink(join(skill, 'README.md'), join(output, 'escape.png'));
   await assert.rejects(build({...minimal, cover: {image: 'assets/custom/escape.png'}}, join(output, 'escaped'), output), /越出/);
-  console.log('PASS minimal/full generation, theme presets/defaults/validation, dates/timezones, roles/alternatives, flight times, input safety, assets, offline manifest and overwrite protection');
+  console.log('PASS minimal/full generation, themes, domestic/overseas maps and overrides, dates/timezones, roles/alternatives, flight times, input safety, assets, offline manifest and overwrite protection');
 } finally { await rm(output, {recursive: true, force: true}); }

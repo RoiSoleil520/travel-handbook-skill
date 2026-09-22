@@ -78,7 +78,10 @@
   const useAlternative = index => Boolean(days[index].alternative && preferences.plans[days[index].date] === 'B');
   const dayEvents = index => (useAlternative(index) ? days[index].alternative.events : days[index].events)
     .filter(event => !event.roles?.length || event.roles.includes(preferences.role));
-  const mapSearchURL = query => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+  const mapName = provider => provider === 'amap' ? '高德地图' : 'Google Maps';
+  const mapSearchURL = (query, provider) => provider === 'amap'
+    ? `https://uri.amap.com/search?keyword=${encodeURIComponent(query)}&src=travel-handbook&callnative=0`
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
   const mapDirectionsURL = (origin, destination) => `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&travelmode=driving`;
   const setThemeColor = color => document.querySelector('meta[name="theme-color"]')?.setAttribute('content', color);
 
@@ -260,9 +263,10 @@
 
   function eventActions(event) {
     const transfer = journey.transfers[event.id];
-    const place = journey.flights[event.id]?.depart.map || journey.hotels[event.id]?.map
-      || transfer?.origin || spotsByEvent[event.id]?.[0]?.mapQuery;
-    return `<div class="focus-actions">${place ? `<a href="${mapSearchURL(place)}" target="_blank" rel="noopener">${transfer ? '集合点地图' : '地点导航'} ↗</a>` : ''}<button data-event="${esc(event.id)}">查看安排 ↓</button></div>`;
+    const location = [journey.flights[event.id]?.depart, journey.hotels[event.id], transfer, spotsByEvent[event.id]?.[0]]
+      .find(item => item?.map || item?.origin || item?.mapQuery);
+    const query = location?.map || location?.origin || location?.mapQuery;
+    return `<div class="focus-actions">${query ? `<a href="${mapSearchURL(query, location.mapProvider)}" target="_blank" rel="noopener" aria-label="在${mapName(location.mapProvider)}查看地点">${transfer ? '集合点地图' : '地点导航'} ↗</a>` : ''}<button data-event="${esc(event.id)}">查看安排 ↓</button></div>`;
   }
 
   function nextLine(item) {
@@ -350,7 +354,7 @@
   function flightCard(flight) {
     const departure = T.localInstant(flight.depart.date, flight.depart.time, flight.depart.zone);
     const arrival = T.localInstant(flight.arrival.date, flight.arrival.time, flight.arrival.zone);
-    return `<section class="flight-card"><div class="flight-card-top"><span>航班 · ${esc(flight.flightNo)}</span><strong>${esc(flight.airline)} · ${esc(flight.travelers)}</strong></div><div class="flight-route"><div><b>${esc(flight.depart.code)}</b><span>${esc(flight.depart.city)} ${esc(flight.depart.terminal)}</span><small>${shortDate(flight.depart.date)} · ${esc(flight.depart.time)} 出发</small><a href="${mapSearchURL(flight.depart.map)}" target="_blank" rel="noopener">机场地图 ↗</a></div><div class="flight-number"><strong>${esc(flight.flightNo)}</strong><i>────→</i></div><div><b>${esc(flight.arrival.code)}</b><span>${esc(flight.arrival.city)} ${esc(flight.arrival.terminal)}</span><small>${shortDate(flight.arrival.date)} · ${esc(flight.arrival.time)} 抵达</small><a href="${mapSearchURL(flight.arrival.map)}" target="_blank" rel="noopener">机场地图 ↗</a></div></div><div class="flight-countdown"><span data-flight-label="${departure}">${departure > now() ? '距计划起飞' : '计划状态 · 非实时'}</span><strong data-countdown-at="${departure}" data-arrival-at="${arrival}">${formatCountdown(departure, arrival)}</strong><small>${esc(flight.status || '待确认')} · 起降均为当地时间</small></div></section>`;
+    return `<section class="flight-card"><div class="flight-card-top"><span>航班 · ${esc(flight.flightNo)}</span><strong>${esc(flight.airline)} · ${esc(flight.travelers)}</strong></div><div class="flight-route"><div><b>${esc(flight.depart.code)}</b><span>${esc(flight.depart.city)} ${esc(flight.depart.terminal)}</span><small>${shortDate(flight.depart.date)} · ${esc(flight.depart.time)} 出发</small><a href="${mapSearchURL(flight.depart.map, flight.depart.mapProvider)}" target="_blank" rel="noopener" aria-label="在${mapName(flight.depart.mapProvider)}查看机场">机场地图 ↗</a></div><div class="flight-number"><strong>${esc(flight.flightNo)}</strong><i>────→</i></div><div><b>${esc(flight.arrival.code)}</b><span>${esc(flight.arrival.city)} ${esc(flight.arrival.terminal)}</span><small>${shortDate(flight.arrival.date)} · ${esc(flight.arrival.time)} 抵达</small><a href="${mapSearchURL(flight.arrival.map, flight.arrival.mapProvider)}" target="_blank" rel="noopener" aria-label="在${mapName(flight.arrival.mapProvider)}查看机场">机场地图 ↗</a></div></div><div class="flight-countdown"><span data-flight-label="${departure}">${departure > now() ? '距计划起飞' : '计划状态 · 非实时'}</span><strong data-countdown-at="${departure}" data-arrival-at="${arrival}">${formatCountdown(departure, arrival)}</strong><small>${esc(flight.status || '待确认')} · 起降均为当地时间</small></div></section>`;
   }
 
   function copyLocationButton(text, label = '复制地点') {
@@ -377,12 +381,15 @@
   }
 
   function hotelCard(hotel) {
-    return `<section class="hotel-card"><div class="journey-icon" aria-hidden="true">⌂</div><div><p class="eyebrow">住宿 · ${esc(hotel.status || '待确认')}</p><h4>${esc(hotel.name)}</h4><p>${esc(hotel.stay)} · ${esc(hotel.rooms)}<br>${esc(hotel.breakfast)} · ${esc(hotel.paid)}</p><small>${esc(hotel.note)}</small>${hotel.map ? `<div class="location-actions"><a href="${mapSearchURL(hotel.map)}" target="_blank" rel="noopener" aria-label="在 Google Maps 查看酒店">查看地图 <span aria-hidden="true">↗</span></a>${copyLocationButton(hotel.map)}</div>` : ''}</div></section>`;
+    return `<section class="hotel-card"><div class="journey-icon" aria-hidden="true">⌂</div><div><p class="eyebrow">住宿 · ${esc(hotel.status || '待确认')}</p><h4>${esc(hotel.name)}</h4><p>${esc(hotel.stay)} · ${esc(hotel.rooms)}<br>${esc(hotel.breakfast)} · ${esc(hotel.paid)}</p><small>${esc(hotel.note)}</small>${hotel.map ? `<div class="location-actions"><a href="${mapSearchURL(hotel.map, hotel.mapProvider)}" target="_blank" rel="noopener" aria-label="在${mapName(hotel.mapProvider)}查看酒店">查看地图 <span aria-hidden="true">↗</span></a>${copyLocationButton(hotel.map)}</div>` : ''}</div></section>`;
   }
 
   function transferCard(transfer, event) {
     const confirmed = transfer.pending && !isPending(event);
-    return `<section class="transfer-card ${transfer.pending && !confirmed ? 'pending-transfer' : ''}"><div class="journey-icon" aria-hidden="true">↗</div><div><p class="eyebrow">${esc(transfer.vehicle)}</p><h4>${esc(transfer.route)}</h4><p>${esc(transfer.time)} · ${esc(transfer.price)}</p><small>${esc(confirmed ? '已在准备清单中标记确认。' : transfer.note)}</small><div class="location-actions"><a href="${mapDirectionsURL(transfer.origin, transfer.destination)}" target="_blank" rel="noopener" aria-label="在 Google Maps 查看路线">查看路线 <span aria-hidden="true">↗</span></a>${copyLocationButton(transfer.destination, '复制终点')}</div></div></section>`;
+    const maps = transfer.mapProvider === 'amap'
+      ? [['origin', '起点'], ['destination', '终点']].map(([key, label]) => `<a href="${mapSearchURL(transfer[key], 'amap')}" target="_blank" rel="noopener" aria-label="在高德地图查看${label}">${label}地图 <span aria-hidden="true">↗</span></a>`).join('')
+      : `<a href="${mapDirectionsURL(transfer.origin, transfer.destination)}" target="_blank" rel="noopener" aria-label="在 Google Maps 查看路线">查看路线 <span aria-hidden="true">↗</span></a>`;
+    return `<section class="transfer-card ${transfer.pending && !confirmed ? 'pending-transfer' : ''}"><div class="journey-icon" aria-hidden="true">↗</div><div><p class="eyebrow">${esc(transfer.vehicle)}</p><h4>${esc(transfer.route)}</h4><p>${esc(transfer.time)} · ${esc(transfer.price)}</p><small>${esc(confirmed ? '已在准备清单中标记确认。' : transfer.note)}</small><div class="location-actions">${maps}${copyLocationButton(transfer.destination, '复制终点')}</div></div></section>`;
   }
 
   function ticketSelect(ticket) {
@@ -437,7 +444,7 @@
     const stay = journey.dailyStay[selected] || day.stay;
     const alternative = day.alternative;
     const plan = alternative ? `<section class="plan-toggle"><h3>天气备选 · 当前${esc(useAlternative(selected) ? alternative.title : alternative.primaryTitle || '主方案')}</h3><div class="plan-buttons"><button data-plan="A" aria-pressed="${!useAlternative(selected)}">${esc(alternative.primaryTitle || '主方案')}</button><button data-plan="B" aria-pressed="${useAlternative(selected)}">${esc(alternative.title)}</button></div><p>${esc(alternative.note || '根据天气与现场通知选择。切换仅调整当天显示，请自行确认预约。')}</p></section>` : '';
-    $('#panel').innerHTML = `<div class="today-heading"><p>DAY ${String(day.day).padStart(2, '0')} · ${shortDate(day.date)} · ${esc(day.city)}</p><h2>${esc(isToday ? '今天，按计划出发' : day.title)}</h2><small>${esc(zoneName(day.zone))} · ${esc(roleName())}</small></div><div class="timeline-intro"><div id="now-container">${nowCard()}</div>${dayReminders()}</div><section class="all-events" id="all-events"><div class="timeline-heading"><h3>${isToday ? '今天的时间线' : '这天的时间线'}</h3><span>${events.length} 项</span></div><div class="all-events-body"><p class="hint">${esc(day.summary)}</p>${plan}<div class="timeline">${events.length ? events.map(event => eventHTML(event, day, state)).join('') : '<p class="task-empty">这一天还没有具体安排，可自由探索或稍后补充。</p>'}</div></div></section><div class="stay-compact"><span>${isToday ? '今晚住宿' : '当晚住宿'}</span><strong>${esc(stay.name || '待确认')}</strong>${stay.map ? `<div class="location-actions"><a href="${mapSearchURL(stay.map)}" target="_blank" rel="noopener" aria-label="在地图查看${esc(stay.name)}">查看地图 <span aria-hidden="true">↗</span></a>${copyLocationButton(stay.map)}</div>` : ''}</div><section class="day-notes" id="day-notes"><h3>当天补充提醒</h3><div class="note-body">${esc((useAlternative(selected) ? alternative.notes || day.notes : day.notes) || '请按天气和服务方通知调整。')}</div></section>`;
+    $('#panel').innerHTML = `<div class="today-heading"><p>DAY ${String(day.day).padStart(2, '0')} · ${shortDate(day.date)} · ${esc(day.city)}</p><h2>${esc(isToday ? '今天，按计划出发' : day.title)}</h2><small>${esc(zoneName(day.zone))} · ${esc(roleName())}</small></div><div class="timeline-intro"><div id="now-container">${nowCard()}</div>${dayReminders()}</div><section class="all-events" id="all-events"><div class="timeline-heading"><h3>${isToday ? '今天的时间线' : '这天的时间线'}</h3><span>${events.length} 项</span></div><div class="all-events-body"><p class="hint">${esc(day.summary)}</p>${plan}<div class="timeline">${events.length ? events.map(event => eventHTML(event, day, state)).join('') : '<p class="task-empty">这一天还没有具体安排，可自由探索或稍后补充。</p>'}</div></div></section><div class="stay-compact"><span>${isToday ? '今晚住宿' : '当晚住宿'}</span><strong>${esc(stay.name || '待确认')}</strong>${stay.map ? `<div class="location-actions"><a href="${mapSearchURL(stay.map, stay.mapProvider)}" target="_blank" rel="noopener" aria-label="在${mapName(stay.mapProvider)}查看${esc(stay.name)}">查看地图 <span aria-hidden="true">↗</span></a>${copyLocationButton(stay.map)}</div>` : ''}</div><section class="day-notes" id="day-notes"><h3>当天补充提醒</h3><div class="note-body">${esc((useAlternative(selected) ? alternative.notes || day.notes : day.notes) || '请按天气和服务方通知调整。')}</div></section>`;
   }
 
   function tableCards(page) {
@@ -446,7 +453,7 @@
       const headers = table[0];
       return `<div class="reference-cards">${table.slice(1).filter(row => row.some(Boolean)).map(row => {
         const hotel = tab === 'bookings' && Object.values(journey.hotels).find(item => row[0] === item.name && item.map);
-        return `<article class="reference-card"><h3>${esc(row[0])}</h3>${row.slice(1).map((cell, index) => cell ? `<div class="reference-row"><span class="key">${esc(headers[index + 1] || '说明')}</span><span class="value">${esc(cell)}</span></div>` : '').join('')}${hotel ? `<div class="location-actions"><a href="${mapSearchURL(hotel.map)}" target="_blank" rel="noopener" aria-label="在地图查看${esc(hotel.name)}">查看地图 <span aria-hidden="true">↗</span></a>${copyLocationButton(hotel.map)}</div>` : ''}</article>`;
+        return `<article class="reference-card"><h3>${esc(row[0])}</h3>${row.slice(1).map((cell, index) => cell ? `<div class="reference-row"><span class="key">${esc(headers[index + 1] || '说明')}</span><span class="value">${esc(cell)}</span></div>` : '').join('')}${hotel ? `<div class="location-actions"><a href="${mapSearchURL(hotel.map, hotel.mapProvider)}" target="_blank" rel="noopener" aria-label="在${mapName(hotel.mapProvider)}查看${esc(hotel.name)}">查看地图 <span aria-hidden="true">↗</span></a>${copyLocationButton(hotel.map)}</div>` : ''}</article>`;
       }).join('')}</div>`;
     }).join('');
   }
@@ -653,7 +660,7 @@
         <p class="spot-lead">${esc(spot.summary)}</p>
         <div class="spot-location">
           <div class="spot-location-heading"><span class="spot-location-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0Z"/><circle cx="12" cy="10" r="2.5"/></svg></span><div><span class="spot-location-label">地点与导航</span><p>${esc(spot.mapQuery)}</p></div></div>
-          <div class="spot-location-actions"><a class="spot-map-link" href="${mapSearchURL(spot.mapQuery)}" target="_blank" rel="noopener">Google 地图 <span aria-hidden="true">↗</span></a>${copyLocationButton(spot.mapQuery)}</div>
+          <div class="spot-location-actions"><a class="spot-map-link" href="${mapSearchURL(spot.mapQuery, spot.mapProvider)}" target="_blank" rel="noopener">${mapName(spot.mapProvider)} <span aria-hidden="true">↗</span></a>${copyLocationButton(spot.mapQuery)}</div>
         </div>
         ${ticket ? `<section class="spot-ticket-section"><div class="section-heading"><div><p class="eyebrow">TICKET</p><h3>门票与预约</h3></div><span>攻略参考价</span></div>${ticketCard(ticket)}</section>` : ''}
         <section class="spot-plan"><h3>这一站，看什么</h3><ul>${spot.tips.map(tip => `<li>${esc(tip)}</li>`).join('')}</ul></section>

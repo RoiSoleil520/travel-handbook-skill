@@ -19,6 +19,7 @@ JSON 是 skill 为用户整理的中间数据，用户只需提供自然语言�
 
 - `id`：稳定且唯一的旅行 ID，仅字母、数字、`-`、`_`，字母或数字开头。默认由标题与首日生成。用于隔离本机清单与偏好；修改同一行程时保留 ID，新旅行换 ID。
 - `theme`：默认配色 ID 字符串；可省略，默认 `green`。仅接受 `green`（苔原绿）、`pink`（春樱粉）、`purple`（暮山紫）、`summer`（夏日海盐）、`autumn`（秋日杏茶）、`winter`（冬日雾蓝）、`holiday`（节日朱砂）、`dark`（午夜深蓝）。未知值或非字符串会拒绝构建。生成后位于 `TRIP.meta.theme`。
+- `mapProvider`：可选地图服务，只接受 `amap`（高德）或 `google`（Google Maps）。顶层省略时按 `timezone` 推断；局部覆盖和继承规则见下文。
 - `sourceNote`：页脚来源说明；示例与估算应明确标注。
 - `sourceURL`：完整攻略的 HTTPS 链接，可不填。
 - `overviewNote`：总览路线说明。
@@ -63,6 +64,20 @@ JSON 是 skill 为用户整理的中间数据，用户只需提供自然语言�
 flight 的 depart/arrival 都需有 `city`、`time`，另可填 `date`（默认事件当天）、`zone`（默认当天时区）、`code`、`terminal`、`map`。到达须晚于起飞；事件开始时间/时区如已填写，须与 depart 一致。航班自动使用真实起降当地时间构造时间线。航班号、时刻未知时用普通“航班待确认”事件，不伪造 flight 数据。夏令时不存在或重复的当地时间会拒绝构建，需明确无歧义时刻后再生成。“此刻”定位按当天时间线计算，前一天出发的跨夜航班保留在出发日，不会自动延续到次日卡片。
 
 每个事件有自己的门票状态；同一张联票覆盖多个活动时，将票务只放在一个购票/使用事件，其他事件用 detail 说明共享联票，避免重复购票。
+
+## 地图服务与搜索词
+
+按实际地点所属区域选择：中国内地用 `amap`，国外用 `google`。支持在整程顶层、`days[]`、事件，以及 `place`、`hotel`、`transfer`、`stay`、`flight.depart`、`flight.arrival` 中设置 `mapProvider`，不接受其他值。各级优先使用自身明确的 `mapProvider`；每天、事件或航班端点未设置地图服务但明确给出当地 `zone` 时，按该时区推断；否则继承上级（住宿继承当天，事件内地点与航班端点继承事件）。`place`、`hotel`、`transfer`、`stay` 不接受新增的 `zone` 配置，仅覆盖地图服务或继承上级。顶层按 `timezone` 推断。`Asia/Shanghai`、`Asia/Urumqi` 及其 IANA 别名使用高德，其他时区使用 Google；浏览器语言、设备时区和用户切换的显示时区不参与地图选择。
+
+国内的 `query`、`map`、`origin`、`destination` 优先使用“中文正式名 + 城市”，如“杭州东站 杭州市”；国外使用“当地名/英文名 + 城市”。跨境航班起降端分别配置，不统一套用整程的国外地图，例如端点字段片段：
+
+```json
+{"depart":{"city":"上海","time":"08:00","zone":"Asia/Shanghai","map":"上海浦东国际机场 上海市","mapProvider":"amap"},"arrival":{"city":"东京","time":"12:00","zone":"Asia/Tokyo","map":"Haneda Airport, Tokyo","mapProvider":"google"}}
+```
+
+以上仅示范字段，并非真实航班；时间与机场应替换为用户确认的信息。示例攻略中未确定的绍兴地点仅搜索“绍兴市”，示例酒店仅搜索西湖地区，不将虚构名称当成真实设施。
+
+高德使用[官方名称搜索](https://lbs.amap.com/api/uri-api/guide/search/search)：`https://uri.amap.com/search?keyword=...&src=travel-handbook&callnative=0`，关键词需进行 URL 编码。高德[路径规划接口](https://lbs.amap.com/api/uri-api/guide/travel/route)需要经纬度，所以模板中仅有名称的国内接送提供“起点地图/终点地图”两个搜索入口，不伪造坐标或声称已经规划路线；国外保留 [Google Maps 路线链接](https://developers.google.com/maps/documentation/urls/get-started)。无需添加 SDK 或 API Key。
 
 ## 图片
 

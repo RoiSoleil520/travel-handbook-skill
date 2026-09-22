@@ -3,6 +3,7 @@
   "title": "江南两日慢游",
   "startDate": "2027-04-03",
   "timezone": "Asia/Shanghai",
+  "mapProvider": "amap",
   "travelers": "四位旅人",
   "sourceNote": "模板演示 · 虚构安排与价格，不代表实际订单",
   "overviewNote": "把上午留给风景，把下午留给散步；遇雨切换室内备选。",
@@ -21,13 +22,13 @@
       "title": "湖光与街巷",
       "summary": "抵达后先放下行李，再慢慢逛湖边。",
       "notes": "所有时间均为演示计划，请按实际订单替换。",
-      "stay": {"name": "湖畔小住（示例酒店）", "map": "West Lake, Hangzhou", "breakfast": "待确认"},
+      "stay": {"name": "湖畔小住（示例酒店）", "map": "西湖 杭州市", "breakfast": "待确认"},
       "events": [
-        {"id": "arrival", "time": "09:00", "end": "10:00", "title": "抵达与接送", "detail": "司机和集合位置待确认。", "pending": true, "confirmedBy": "confirm-transfer", "transfer": {"origin": "Hangzhou East Railway Station", "destination": "West Lake, Hangzhou", "time": "09:00 集合，09:15 出发（演示）", "vehicle": "车辆待确认", "price": "待确认", "note": "请取得实际服务方回执。"}},
-        {"id": "lake", "time": "10:30", "end": "12:00", "title": "湖边慢走", "detail": "选择一段轻松路线，中途留出休息时间。", "roles": ["walk"], "place": {"name": "西湖", "query": "West Lake, Hangzhou, China", "summary": "沿湖散步，看一看水面与树影。", "tips": ["路线和时长按当天体力调整。", "图片为模板示意，非景点实拍。"]}},
+        {"id": "arrival", "time": "09:00", "end": "10:00", "title": "抵达与接送", "detail": "司机和集合位置待确认。", "pending": true, "confirmedBy": "confirm-transfer", "transfer": {"origin": "杭州东站 杭州市", "destination": "西湖 杭州市", "time": "09:00 集合，09:15 出发（演示）", "vehicle": "车辆待确认", "price": "待确认", "note": "请取得实际服务方回执。"}},
+        {"id": "lake", "time": "10:30", "end": "12:00", "title": "湖边慢走", "detail": "选择一段轻松路线，中途留出休息时间。", "roles": ["walk"], "place": {"name": "西湖", "query": "西湖 杭州市", "summary": "沿湖散步，看一看水面与树影。", "tips": ["路线和时长按当天体力调整。", "图片为模板示意，非景点实拍。"]}},
         {"id": "tea", "time": "10:30", "end": "12:00", "title": "湖边休息", "detail": "找一处方便的休息点，与漫步组午餐时会合。", "roles": ["rest"]},
         {"id": "lunch", "time": "12:30", "end": "13:30", "title": "一起吃午餐", "detail": "餐厅待选，不代表已经预订。"},
-        {"id": "hotel", "time": "15:00", "title": "入住与自由活动", "hotel": {"name": "湖畔小住（示例酒店）", "map": "West Lake, Hangzhou", "stay": "第 1 晚", "rooms": "房型待确认", "breakfast": "待确认", "paid": "未提供", "status": "待确认", "note": "这是演示名称，请替换为实际住宿。"}}
+        {"id": "hotel", "time": "15:00", "title": "入住与自由活动", "hotel": {"name": "湖畔小住（示例酒店）", "map": "西湖 杭州市", "stay": "第 1 晚", "rooms": "房型待确认", "breakfast": "待确认", "paid": "未提供", "status": "待确认", "note": "这是演示名称，请替换为实际住宿。"}}
       ],
       "alternative": {"title": "雨天慢游", "primaryTitle": "湖边原计划", "note": "仅演示切换；不会自动调整订单。", "events": [{"id": "rain-tea", "time": "10:30", "end": "12:00", "title": "室内喝茶与聊天", "detail": "具体地点待定。"}, {"id": "rain-lunch", "time": "12:30", "title": "午餐后休息", "detail": "按实际安排入住。"}]},
       "eveningReminder": "明天转场：确认行李、出发时间和目的地天气。"
@@ -38,11 +39,11 @@
       "summary": "为街巷留半天，为返程留足时间。",
       "stay": {"name": "返程 · 无住宿"},
       "events": [
-        {"id": "old-street", "time": "10:00", "end": "12:00", "title": "老街漫步", "detail": "路线待最终确定。", "place": {"name": "绍兴老街", "query": "Shaoxing, Zhejiang, China", "summary": "散步看看水巷与老建筑。", "tips": ["以现场开放和道路情况为准。"]}},
-        {"id": "exhibition", "time": "13:30", "end": "15:00", "title": "小展馆参观（示例）", "detail": "场馆待选，票价与开放时间待核实。", "ticket": {"name": "展馆门票（示例）", "price": "待确认", "status": "todo", "note": "这里只演示购票状态交互。"}, "place": {"name": "小展馆（示例）", "query": "Shaoxing, Zhejiang, China", "summary": "选择一个感兴趣的展览。", "tips": ["正式出发前替换为真实场馆信息。"]}},
+        {"id": "old-street", "time": "10:00", "end": "12:00", "title": "老街漫步", "detail": "路线待最终确定。", "place": {"name": "绍兴老街", "query": "绍兴市", "summary": "散步看看水巷与老建筑。", "tips": ["以现场开放和道路情况为准。"]}},
+        {"id": "exhibition", "time": "13:30", "end": "15:00", "title": "小展馆参观（示例）", "detail": "场馆待选，票价与开放时间待核实。", "ticket": {"name": "展馆门票（示例）", "price": "待确认", "status": "todo", "note": "这里只演示购票状态交互。"}, "place": {"name": "小展馆（示例）", "query": "绍兴市", "summary": "选择一个感兴趣的展览。", "tips": ["正式出发前替换为真实场馆信息。"]}},
         {"id": "return", "time": "17:00", "title": "返程", "detail": "具体车次和时刻待确认。"}
       ],
-      "alternative": {"title": "室内备选", "primaryTitle": "水巷原计划", "events": [{"id": "indoor", "time": "10:00", "end": "15:00", "title": "室内休息与自由活动", "detail": "地点与返程安排待确认。", "place": {"name": "休息点（示例）", "query": "Shaoxing, Zhejiang, China", "summary": "用于演示备选方案的景点详情。", "tips": []}}]}
+      "alternative": {"title": "室内备选", "primaryTitle": "水巷原计划", "events": [{"id": "indoor", "time": "10:00", "end": "15:00", "title": "室内休息与自由活动", "detail": "地点与返程安排待确认。", "place": {"name": "休息点（示例）", "query": "绍兴市", "summary": "用于演示备选方案的景点详情。", "tips": []}}]}
     }
   ]
 }

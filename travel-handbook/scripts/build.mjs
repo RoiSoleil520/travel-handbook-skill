@@ -55,6 +55,15 @@ function status(value) {
   if (!['todo', 'onsite', 'booked', 'cancelled'].includes(result)) throw new Error(`无效购票状态：${result}`);
   return result;
 }
+function mapProvider(value, localZone, fallback = 'google') {
+  if (value !== undefined) {
+    if (!['amap', 'google'].includes(value)) throw new Error('mapProvider 只接受 amap 或 google');
+    return value;
+  }
+  if (!localZone) return fallback;
+  const canonical = new Intl.DateTimeFormat('en', {timeZone: localZone}).resolvedOptions().timeZone;
+  return ['Asia/Shanghai', 'Asia/Urumqi'].includes(canonical) ? 'amap' : 'google';
+}
 
 export function normalize(input) {
   object(input);
@@ -66,6 +75,7 @@ export function normalize(input) {
   if (!inputDays.length) throw new Error('至少提供一天行程 days');
   const startDate = date(text(input.startDate, inputDays[0].date));
   const timezone = zone(text(input.timezone, 'Asia/Shanghai'));
+  const defaultMapProvider = mapProvider(input.mapProvider, timezone);
   const roles = list(input.roles ?? [{id: 'all', name: '全体同行'}]).map(role => ({id: id(text(object(role).id)), name: text(role.name, role.id)}));
   if (!roles.length || new Set(roles.map(role => role.id)).size !== roles.length) throw new Error('roles 不可为空或包含重复 ID');
   const roleIds = new Set(roles.map(role => role.id));
@@ -94,6 +104,7 @@ export function normalize(input) {
       if (eventIds.has(eventId)) throw new Error(`重复事件 ID：${eventId}`);
       eventIds.add(eventId);
       const event = {id: eventId, title: text(source.title), detail: text(source.detail), zone: zone(text(source.zone, day.zone)), label: text(source.label, '时间待定')};
+      event.mapProvider = mapProvider(source.mapProvider, source.zone ? event.zone : undefined, day.mapProvider);
       if (!event.title) throw new Error(`${eventId} 缺少 title`);
       if (source.time || source.start) { event.start = time(source.time || source.start); event.label = text(source.label, event.start); }
       if (source.end) {
@@ -119,6 +130,7 @@ export function normalize(input) {
       if (source.place) {
         const p = object(source.place);
         const spot = {id: `${eventId}-place`, day: day.day, city: day.city, eventIds: [eventId], name: text(p.name, event.title), mapQuery: text(p.query, `${text(p.name, event.title)}, ${day.city}`), summary: text(p.summary, event.detail), tips: list(p.tips).map(item => text(item)), image: picture(p.image, 'assets/placeholder.svg'), source: text(p.credit, p.image ? '用户提供图片' : '模板示意图，非实景')};
+        spot.mapProvider = mapProvider(p.mapProvider, undefined, event.mapProvider);
         spot.souvenirs = list(p.souvenirs).map(item => {
           object(item);
           return {name: text(item.name), price: text(item.price, '待确认'), detail: text(item.detail), image: picture(item.image, 'assets/placeholder.svg'), source: text(item.credit, item.image ? '用户提供图片' : '模板示意图，非商品实拍')};
@@ -130,6 +142,7 @@ export function normalize(input) {
         const endpoint = (value, fallbackDate) => {
           object(value);
           const p = {date: date(text(value.date, fallbackDate)), time: time(text(value.time)), zone: zone(text(value.zone, day.zone))};
+          p.mapProvider = mapProvider(value.mapProvider, value.zone ? p.zone : undefined, event.mapProvider);
           for (const key of ['city', 'code', 'terminal', 'map']) p[key] = text(value[key]);
           if (!p.city) throw new Error('航班起降地点需提供 city');
           p.map ||= p.city;
@@ -150,10 +163,12 @@ export function normalize(input) {
         const h = object(source.hotel), hotel = {};
         for (const key of ['name', 'stay', 'rooms', 'breakfast', 'paid', 'note', 'status']) hotel[key] = text(h[key], ['note', 'stay'].includes(key) ? '' : '待确认');
         hotel.map = text(h.map, hotel.name);
+        hotel.mapProvider = mapProvider(h.mapProvider, undefined, event.mapProvider);
         journey.hotels[eventId] = hotel;
       }
       if (source.transfer) {
         const t = object(source.transfer), transfer = {pending: event.pending};
+        transfer.mapProvider = mapProvider(t.mapProvider, undefined, event.mapProvider);
         for (const key of ['origin', 'destination']) {
           transfer[key] = text(t[key]);
           if (!transfer[key]) throw new Error('接送需提供 origin 和 destination');
@@ -174,11 +189,13 @@ export function normalize(input) {
     object(source);
     const expected = new Date(Date.parse(startDate) + index * 86400000).toISOString().slice(0, 10);
     const day = {day: index + 1, date: date(text(source.date, expected)), zone: zone(text(source.zone, timezone)), city: text(source.city), title: text(source.title, source.city), summary: text(source.summary), notes: text(source.notes), eveningReminder: text(source.eveningReminder)};
+    day.mapProvider = mapProvider(source.mapProvider, source.zone ? day.zone : undefined, defaultMapProvider);
     if (day.date !== expected) throw new Error(`第 ${day.day} 天应为 ${expected}；请用空行程保留休息日`);
     if (!day.city || !day.title) throw new Error(`第 ${day.day} 天需提供 city`);
     T.localInstant(day.date, '00:00', day.zone);
     const stay = source.stay ? object(source.stay) : {};
     day.stay = {name: text(stay.name, '住宿待补充'), map: text(stay.map), nights: text(stay.nights), breakfast: text(stay.breakfast)};
+    day.stay.mapProvider = mapProvider(stay.mapProvider, undefined, day.mapProvider);
     journey.dailyStay.push(day.stay);
     day.events = events(source.events, day, `d${day.day}`);
     if (source.alternative) {
@@ -190,6 +207,7 @@ export function normalize(input) {
   const cover = input.cover ? object(input.cover) : {};
   const meta = {id: id(text(input.id, `trip-${hash(title + startDate)}`)), title, zone: timezone, travelers: text(input.travelers, '同行旅人'), eyebrow: text(cover.eyebrow, `TRAVEL / ${startDate.slice(0, 4)}`), coverTitle: text(cover.title, '把时间留给风景，\n把旅程留给自己。'), coverKicker: text(cover.kicker, `下一站，${days[0].city}`), route: [...new Set(days.map(day => day.city))].join(' · '), coverImage: picture(cover.image, 'assets/cover.svg'), coverCredit: text(cover.credit, cover.image ? '用户提供图片' : '模板风景示意，非目的地实景'), sourceNote: text(input.sourceNote, '依据提供的攻略整理 · 未确认项目请行前复核'), overviewNote: text(input.overviewNote), sourceURL: input.sourceURL ? link(input.sourceURL) : ''};
   meta.theme = theme;
+  meta.mapProvider = defaultMapProvider;
   const sections = Object.fromEntries(['bookings', 'transport', 'packing', 'budget', 'overview', 'checklist'].map(key => [key, []]));
   const table = (title, headers, rows) => ({title, text: '', tables: [[headers, ...rows]], links: []});
   if (Object.keys(journey.flights).length) sections.bookings.push(table('航班', ['航班', '出发', '抵达', '状态'], Object.values(journey.flights).map(f => [f.flightNo, `${f.depart.date} ${f.depart.time} ${f.depart.city}`, `${f.arrival.date} ${f.arrival.time} ${f.arrival.city}`, `${f.status} · ${f.paid}`])));

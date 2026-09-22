@@ -106,8 +106,21 @@ try {
     day.alternative ||= {title: `第 ${index + 1} 天室内备选`, events: [{title: `第 ${index + 1} 天室内休息`, time: '11:00'}]};
   }
   const model = normalize(rich);
+  const crossBorder = {
+    id: 'ui-cross-border', title: '上海到东京', startDate: rich.startDate, timezone: 'Asia/Shanghai',
+    days: [{city: '上海 → 东京', stay: {name: '东京酒店', map: 'Tokyo Station Hotel', mapProvider: 'google'}, events: [
+      {id: 'cross-flight', title: '飞往东京', flight: {
+        depart: {time: '08:00', city: '上海', code: 'PVG', map: '上海浦东国际机场', zone: 'Asia/Shanghai'},
+        arrival: {time: '12:00', city: '东京', code: 'HND', map: 'Haneda Airport Tokyo', zone: 'Asia/Tokyo'}
+      }},
+      {id: 'tokyo-transfer', title: '机场接送', time: '12:30', end: '13:00', zone: 'Asia/Tokyo', transfer: {origin: 'Haneda Airport Tokyo', destination: 'Tokyo Station Hotel'}},
+      {id: 'tokyo-place', title: '东京散步', time: '13:00', end: '14:00', zone: 'Asia/Tokyo', place: {name: '东京站', query: 'Tokyo Station Japan'}},
+      {id: 'tokyo-hotel', title: '入住东京', time: '15:00', zone: 'Asia/Tokyo', hotel: {name: '东京酒店', map: 'Tokyo Station Hotel'}}
+    ]}]
+  };
   await build(minimal, join(temporary, 'minimal'));
   await build(rich, join(temporary, 'full'));
+  await build(crossBorder, join(temporary, 'cross-border'));
   server = createServer(async (request, response) => {
     try {
       const path = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
@@ -352,6 +365,59 @@ try {
       await page.locator(`#dates [data-day="${index}"]`).click();
       assert.equal(await page.locator(`[data-plan="${plan}"]`).getAttribute('aria-pressed'), 'true');
     }
+  });
+
+  await scenario('maps follow mainland and overseas locations independently of display timezone', 'full', during, async page => {
+    async function mapLink(locator, provider, query) {
+      const url = new URL(await locator.getAttribute('href'));
+      assert.equal(url.origin, provider === 'amap' ? 'https://uri.amap.com' : 'https://www.google.com');
+      assert.equal(url.pathname, provider === 'amap' ? '/search' : '/maps/search/');
+      assert.equal(url.searchParams.get(provider === 'amap' ? 'keyword' : 'query'), query);
+      assert.match(`${await locator.innerText()} ${await locator.getAttribute('aria-label') || ''}`, provider === 'amap' ? /高德/ : /Google/);
+    }
+    const stay = model.journey.dailyStay[0];
+    const [hotelId, hotel] = Object.entries(model.journey.hotels)[0];
+    const [transferId, transfer] = Object.entries(model.journey.transfers)[0];
+    const place = model.spots.find(spot => spot.eventIds.includes('lake'));
+    await mapLink(page.locator('.focus-actions a'), 'amap', place.mapQuery);
+    await mapLink(page.locator('.stay-compact .location-actions a'), 'amap', stay.map);
+    await mapLink(page.locator(`#event-${hotelId} .location-actions a`), 'amap', hotel.map);
+    const transferLinks = page.locator(`#event-${transferId} .location-actions a`);
+    assert.equal(await transferLinks.count(), 2, 'Mainland transfer uses separate endpoint searches without coordinates');
+    await mapLink(transferLinks.nth(0), 'amap', transfer.origin);
+    await mapLink(transferLinks.nth(1), 'amap', transfer.destination);
+    assert.match(await transferLinks.nth(0).innerText(), /起点地图/);
+    assert.match(await transferLinks.nth(1).innerText(), /终点地图/);
+    await page.locator(`[data-spot="${place.id}"]`).click();
+    await mapLink(page.locator('.spot-map-link'), 'amap', place.mapQuery);
+    await tab(page, 'bookings');
+    await mapLink(page.locator('.reference-card .location-actions a').first(), 'amap', hotel.map);
+
+    await page.clock.setSystemTime(new Date(globalThis.TripTime.localInstant(rich.startDate, '13:30', 'Asia/Tokyo')));
+    await page.goto(`${base}/cross-border/`); await enter(page);
+    const airports = page.locator('#event-cross-flight .flight-route a');
+    await mapLink(airports.nth(0), 'amap', '上海浦东国际机场');
+    await mapLink(airports.nth(1), 'google', 'Haneda Airport Tokyo');
+    await mapLink(page.locator('.focus-actions a'), 'google', 'Tokyo Station Japan');
+    await mapLink(page.locator('.stay-compact .location-actions a'), 'google', 'Tokyo Station Hotel');
+    await mapLink(page.locator('#event-tokyo-hotel .location-actions a'), 'google', 'Tokyo Station Hotel');
+    const route = page.locator('#event-tokyo-transfer .location-actions a');
+    const routeURL = new URL(await route.getAttribute('href'));
+    assert.equal(routeURL.origin + routeURL.pathname, 'https://www.google.com/maps/dir/');
+    assert.equal(routeURL.searchParams.get('origin'), 'Haneda Airport Tokyo');
+    assert.equal(routeURL.searchParams.get('destination'), 'Tokyo Station Hotel');
+    assert.match(`${await route.innerText()} ${await route.getAttribute('aria-label')}`, /Google/);
+    await page.locator('[data-spot="tokyo-place-place"]').click();
+    await mapLink(page.locator('.spot-map-link'), 'google', 'Tokyo Station Japan');
+    await page.locator('[data-action="close-spot"]').click();
+    const linksBefore = await page.locator('#panel a[href]').evaluateAll(nodes => nodes.map(node => node.href));
+    await toolsMenu(page); await page.locator('#clock-button').click();
+    await page.locator('#zone-mode').selectOption('custom');
+    await page.locator('#custom-zone').fill('Europe/Paris');
+    await page.locator('#settings-save').click();
+    assert.deepEqual(await page.locator('#panel a[href]').evaluateAll(nodes => nodes.map(node => node.href)), linksBefore, 'Display timezone does not change map providers');
+    await tab(page, 'bookings');
+    await mapLink(page.locator('.reference-card .location-actions a'), 'google', 'Tokyo Station Hotel');
   });
 
   await scenario('place detail, back navigation, tickets and route zoom', 'full', during, async page => {
