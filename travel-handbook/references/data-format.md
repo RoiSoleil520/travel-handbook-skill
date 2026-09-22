@@ -75,7 +75,7 @@ flight 的 depart/arrival 都需有 `city`、`time`，另可填 `date`（默认�
 {"depart":{"city":"上海","time":"08:00","zone":"Asia/Shanghai","map":"上海浦东国际机场 上海市","mapProvider":"amap"},"arrival":{"city":"东京","time":"12:00","zone":"Asia/Tokyo","map":"Haneda Airport, Tokyo","mapProvider":"google"}}
 ```
 
-以上仅示范字段，并非真实航班；时间与机场应替换为用户确认的信息。示例攻略中未确定的绍兴地点仅搜索“绍兴市”，示例酒店仅搜索西湖地区，不将虚构名称当成真实设施。
+以上仅示范字段，并非真实航班；时间与机场应替换为用户确认的信息。云南示例中尚未确定的酒店仅搜索“大理古城”或“丽江古城”选宿区域，不将“住宿待选”等说明当成真实设施名称。
 
 高德使用[官方名称搜索](https://lbs.amap.com/api/uri-api/guide/search/search)：`https://uri.amap.com/search?keyword=...&src=travel-handbook&callnative=0`，关键词需进行 URL 编码。高德[路径规划接口](https://lbs.amap.com/api/uri-api/guide/travel/route)需要经纬度，所以模板中仅有名称的国内接送提供“起点地图/终点地图”两个搜索入口，不伪造坐标或声称已经规划路线；国外保留 [Google Maps 路线链接](https://developers.google.com/maps/documentation/urls/get-started)。无需添加 SDK 或 API Key。
 

@@ -20,9 +20,15 @@ try {
   const data = normalize(sample);
   assert.equal(data.trip.days[1].date, '2027-04-04');
   assert.equal(data.trip.roles.length, 2);
-  assert.equal(data.journey.ticketsByEvent.exhibition.defaultStatus, 'todo');
-  assert.equal(data.journey.hotels.hotel.status, '待确认');
-  assert.equal(data.spots.find(p => p.id === 'indoor-place').day, 2, 'Alternative place must be linked to its day');
+  const ticketEvent = sample.days.flatMap(day => day.events).find(event => event.ticket);
+  const hotelEvent = sample.days.flatMap(day => day.events).find(event => event.hotel);
+  assert.ok(ticketEvent && hotelEvent, 'Example needs a ticket and hotel');
+  assert.equal(data.journey.ticketsByEvent[ticketEvent.id].defaultStatus, ticketEvent.ticket.status?.trim() ?? 'todo');
+  assert.equal(data.journey.hotels[hotelEvent.id].status, hotelEvent.hotel.status?.trim() ?? '待确认');
+  const alternativeDay = sample.days.findIndex(day => day.alternative?.events.some(event => event.place));
+  assert.ok(alternativeDay >= 0, 'Example needs an alternative place');
+  const alternativePlace = sample.days[alternativeDay].alternative.events.find(event => event.place);
+  assert.equal(data.spots.find(spot => spot.eventIds.includes(alternativePlace.id)).day, alternativeDay + 1, 'Alternative place must be linked to its day');
   const reject = (change, message) => {
     const input = structuredClone(sample); change(input); assert.throws(() => normalize(input), message);
   };
@@ -69,14 +75,14 @@ try {
   reject(input => input.timezone = 'Mars/Nowhere', /时区/);
   reject(input => input.days[1].date = '2027-04-09', /第 2 天/);
   reject(input => input.days[0].events[0].time = '25:00', /时间/);
-  reject(input => input.days[1].events[0].id = 'arrival', /重复/);
+  reject(input => input.days[1].events[0].id = input.days[0].events[0].id, /重复/);
   reject(input => input.days[0].events[0].roles = ['missing'], /roles/);
   reject(input => input.days[0].events[0].confirmedBy = 'missing', /confirmedBy/);
   reject(input => input.cover.image = '../../secret.png', /图片路径/);
   reject(input => input.sourceURL = 'javascript:alert(1)', /HTTPS/);
   reject(input => input.checklist[0].url = 'https://user:password@example.com', /HTTPS/);
   reject(input => input.days[0].events[0].pending = 'true', /布尔/);
-  reject(input => input.checklist[1].dueTime = '10:00', /dueTime/);
+  reject(input => { delete input.checklist[0].due; input.checklist[0].dueTime = '10:00'; }, /dueTime/);
   assert.throws(() => normalize({...minimal, startDate: '2027-03-14', timezone: 'America/New_York', days: [{city: '纽约', events: [{title: '不存在的时间', time: '02:30'}]}]}), /夏令时/);
   const overnight = normalize({...minimal, days: [{city: '杭州', events: [{title: '跨夜', time: '23:00', end: '01:00'}]}]});
   const bounds = globalThis.TripTime.bounds(overnight.trip.days[0].events[0], overnight.trip.days[0].date);

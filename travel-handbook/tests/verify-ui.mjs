@@ -339,6 +339,23 @@ try {
   });
 
   await scenario('roles and per-day alternative plans persist independently', 'full', during, async page => {
+    for (const theme of ['green', 'pink', 'purple', 'summer', 'autumn', 'winter', 'holiday', 'dark']) {
+      await themes(page); await chooseTheme(page, theme);
+      await page.keyboard.press('Escape');
+      const selected = page.locator('.plan-buttons button[aria-pressed="true"]');
+      const unselected = page.locator('.plan-buttons button[aria-pressed="false"]');
+      const background = locator => locator.evaluate(node => getComputedStyle(node).backgroundColor);
+      const surface = await background(page.locator('.event-card').first());
+      const expected = theme === 'dark' ? surface : 'rgb(255, 255, 255)';
+      assert.equal(await background(unselected), expected, `${theme}: unselected plan surface`);
+      await unselected.hover();
+      assert.equal(await background(unselected), expected, `${theme}: hover preserves the unselected plan surface`);
+      const selectedBackground = await background(selected);
+      await selected.hover();
+      assert.equal(await background(selected), selectedBackground, `${theme}: hover preserves the selected plan surface`);
+      await readableDarkSurface(page, '.plan-buttons button[aria-pressed="true"]');
+      if (['green', 'dark'].includes(theme)) await screenshot(page, `plan-buttons-${theme}-390`);
+    }
     const [firstRole, secondRole] = model.trip.roles;
     const expected = (index, roleId, alternative = false) => (alternative ? model.trip.days[index].alternative.events : model.trip.days[index].events).filter(event => !event.roles || event.roles.includes(roleId)).map(event => event.id);
     const roleDay = model.trip.days.findIndex(day => day.events.some(event => event.roles));
@@ -378,7 +395,10 @@ try {
     const stay = model.journey.dailyStay[0];
     const [hotelId, hotel] = Object.entries(model.journey.hotels)[0];
     const [transferId, transfer] = Object.entries(model.journey.transfers)[0];
-    const place = model.spots.find(spot => spot.eventIds.includes('lake'));
+    const visibleEvents = firstDay.events.filter(event => !event.roles || event.roles.includes(model.trip.roles[0].id));
+    const activeIds = globalThis.TripTime.schedule(visibleEvents, firstDay.date, during).active.map(item => item.event.id);
+    const place = model.spots.find(spot => spot.eventIds.some(id => activeIds.includes(id)));
+    assert.ok(place, 'Example needs a place in the active itinerary for the map check');
     await mapLink(page.locator('.focus-actions a'), 'amap', place.mapQuery);
     await mapLink(page.locator('.stay-compact .location-actions a'), 'amap', stay.map);
     await mapLink(page.locator(`#event-${hotelId} .location-actions a`), 'amap', hotel.map);

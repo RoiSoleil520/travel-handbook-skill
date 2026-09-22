@@ -97,6 +97,8 @@
   .tools-close, .icon-button, .map-zoom-tools button, .route span) {
   background: var(--surface-soft); border-color: var(--line); color: var(--ink);
 }
+:root[data-theme] .plan-buttons button:not([aria-pressed=true]) { background: #fff; }
+:root[data-theme="dark"] .plan-buttons button:not([aria-pressed=true]) { background: var(--surface); }
 :root[data-theme] :is(input, select, textarea) {
   color: var(--ink); background: var(--surface); border-color: var(--line); accent-color: var(--accent);
 }
@@ -299,7 +301,7 @@ html:has(#theme-dialog[open]) { overflow: hidden; }
 }
 @media (hover: hover) {
   :root[data-theme] :is(.dates .date-button:hover, .overview-day-open:hover, .overview-stops button:hover,
-    .spot-link:hover, .tools-close:hover, .theme-shortcut:hover, .plan-buttons button:hover),
+    .spot-link:hover, .tools-close:hover, .theme-shortcut:hover),
   :root[data-theme] .floating-tools .navigation-panel .tabs button:hover,
   :root[data-theme] .preparation-page #prep-add > summary:hover,
   :root[data-theme] .preparation-page .task-card:has(input:focus-visible) { background: var(--accent-soft); color: var(--ink); }
