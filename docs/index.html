@@ -1,19 +1,21 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="green">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f6f8f4">
   <title>旅行手册</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="themes.css">
   <script src="time.js" defer></script>
+  <script src="themes.js" defer></script>
   <script src="data.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
 <a class="skip" href="#content">跳到行程内容</a>
   <section id="trip-cover" class="trip-cover" aria-labelledby="cover-title" hidden>
-    <div class="cover-top"><span>TRAVEL HANDBOOK</span><span>旅行手册</span></div>
+    <div class="cover-top"><span>TRAVEL HANDBOOK</span><span id="cover-travelers">旅行手册</span><button class="cover-theme-button" type="button" data-action="choose-theme" aria-haspopup="dialog" aria-controls="theme-dialog"><span aria-hidden="true">◐</span> 配色</button></div>
     <div class="cover-copy"><p class="cover-kicker">下一站，出发</p><h2 id="cover-title">把时间留给风景。</h2><p class="cover-route">旅行路线</p>
       <div class="cover-countdown" role="timer" aria-label="距离旅程开始"><div><strong data-cover-unit="days">00</strong><span>天</span></div><i>:</i><div><strong data-cover-unit="hours">00</strong><span>时</span></div><i>:</i><div><strong data-cover-unit="minutes">00</strong><span>分</span></div><i>:</i><div><strong data-cover-unit="seconds">00</strong><span>秒</span></div></div>
       <p class="cover-date">距离旅程开始</p><button id="enter-trip" class="cover-enter" type="button">上滑/点击开启旅行手册 <span aria-hidden="true">↑</span></button>
@@ -54,6 +56,7 @@
         <button class="role-shortcut" id="role-menu-button" aria-expanded="false" aria-controls="role-panel"><span>查看身份</span><strong id="role-button-label">全部</strong><span aria-hidden="true">⇄</span></button>
 
       </div>
+      <button class="theme-shortcut" type="button" data-action="choose-theme" aria-haspopup="dialog" aria-controls="theme-dialog"><span>旅行配色</span><strong id="theme-current">苔原绿</strong><span aria-hidden="true">◐</span></button>
       <button id="clock-button" class="clock-button" aria-haspopup="dialog"><span><strong id="clock">--:--</strong><small id="zone-label">目的地当地时间</small></span><span class="settings-label">时间与时区 ↗</span></button>
     </div>
 
@@ -66,6 +69,12 @@
     </div>
   </div>
   <p class="save-feedback" id="save-feedback" role="status" aria-live="polite" hidden></p>
+  <dialog id="theme-dialog" aria-labelledby="theme-title">
+    <div class="dialog-title"><h2 id="theme-title">旅行配色</h2><form method="dialog"><button class="icon-button" aria-label="关闭旅行配色">×</button></form></div>
+    <p class="theme-intro">给旅程换一种心情。点选即刻生效。</p>
+    <div class="theme-grid" role="group" aria-label="选择旅行配色"></div>
+    <p id="theme-feedback" class="muted" role="status" aria-live="polite">选择会记在这台设备上。</p>
+  </dialog>
   <dialog id="copy-location-dialog" aria-labelledby="copy-location-title">
     <div class="dialog-title"><h2 id="copy-location-title">复制地点</h2><form method="dialog"><button class="icon-button" aria-label="关闭复制地点">×</button></form></div>
     <p class="muted">未能自动复制，请长按下方文字选择复制；电脑可按 Ctrl/Cmd+C。</p>

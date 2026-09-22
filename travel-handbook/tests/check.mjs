@@ -12,6 +12,7 @@ const sample = JSON.parse(await readFile(join(skill, 'examples/trip.json'), 'utf
 const output = await mkdtemp(join(tmpdir(), 'travel-handbook-check-'));
 try {
   const plain = normalize(minimal);
+  assert.equal(plain.trip.meta.theme, 'green', 'Omitted theme must default to green');
   assert.equal(plain.trip.days.length, 1);
   assert.equal(plain.trip.days[0].events[0].start, undefined, 'Unknown times must stay unknown');
   assert.equal(plain.journey.dailyStay[0].map, '');
@@ -24,6 +25,21 @@ try {
   const reject = (change, message) => {
     const input = structuredClone(sample); change(input); assert.throws(() => normalize(input), message);
   };
+  for (const theme of ['unknown', '', 'toString', '__proto__', null, 42, true, [], {}]) {
+    reject(input => input.theme = theme, /theme|主题|字符串/);
+  }
+  for (const theme of ['green', 'pink', 'purple', 'summer', 'autumn', 'winter', 'holiday', 'dark']) {
+    assert.equal(normalize({...minimal, theme}).trip.meta.theme, theme);
+    const themedOutput = join(output, theme);
+    await build({...minimal, theme}, themedOutput);
+    const html = await readFile(join(themedOutput, 'index.html'), 'utf8');
+    assert.match(html, new RegExp(`<html\\b[^>]*\\bdata-theme="${theme}"`), 'Initial HTML must use the configured theme');
+    for (const file of ['themes.js', 'themes.css']) {
+      assert.ok((await readFile(join(themedOutput, file), 'utf8')).length, `${file} must be included in the output`);
+      assert.ok(html.includes(file), `HTML must load ${file}`);
+      assert.ok((await readFile(join(themedOutput, 'sw.js'), 'utf8')).includes(`"${file}"`), `Offline manifest must include ${file}`);
+    }
+  }
   reject(input => input.startDate = '2027-02-30', /日期/);
   reject(input => input.timezone = 'Mars/Nowhere', /时区/);
   reject(input => input.days[1].date = '2027-04-09', /第 2 天/);
@@ -56,6 +72,7 @@ try {
   assert.equal(browser.window.TRIP.meta.title, sample.title);
   const files = await readdir(join(output, 'site'));
   assert.ok(files.includes('index.html') && files.includes('sw.js'));
+  assert.match(await readFile(join(output, 'site/index.html'), 'utf8'), /<html\b[^>]*\bdata-theme="green"/, 'Default build must start in green');
   assert.ok(!/bundle-key|access\.json|\.enc|itinerary\.pdf|cloudbase|invite-codes/.test(files.join('\n')));
   const sw = await readFile(join(output, 'site/sw.js'), 'utf8');
   assert.ok(!sw.includes('__PRECACHE__') && !sw.includes('__CACHE_VERSION__'));
@@ -66,5 +83,5 @@ try {
   assert.equal(await readFile(join(output, 'images/assets/custom/photo.png'), 'utf8'), 'demo image bytes');
   await symlink(join(skill, 'README.md'), join(output, 'escape.png'));
   await assert.rejects(build({...minimal, cover: {image: 'assets/custom/escape.png'}}, join(output, 'escaped'), output), /越出/);
-  console.log('PASS minimal/full generation, dates/timezones, roles/alternatives, flight times, input safety, assets, offline manifest and overwrite protection');
+  console.log('PASS minimal/full generation, theme presets/defaults/validation, dates/timezones, roles/alternatives, flight times, input safety, assets, offline manifest and overwrite protection');
 } finally { await rm(output, {recursive: true, force: true}); }

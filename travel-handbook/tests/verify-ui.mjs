@@ -18,6 +18,7 @@ const mime = {'.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 't
 let browser, server;
 
 async function toolsMenu(page) {
+  await page.waitForFunction(vertical => document.querySelector('.tabs').getAttribute('aria-orientation') === (vertical ? 'vertical' : 'horizontal'), page.viewportSize().width >= 1100);
   if (page.viewportSize().width >= 1100) {
     await page.locator('#navigation-panel').waitFor();
     return;
@@ -51,6 +52,37 @@ async function screenshot(page, name) {
   if (screenshotDir) await page.screenshot({path: join(screenshotDir, `${name}.png`), fullPage: true});
 }
 
+async function themes(page) {
+  if (await page.locator('#trip-cover').isVisible()) await page.locator('.cover-theme-button').click();
+  else { await toolsMenu(page); await page.locator('.theme-shortcut').click(); }
+  await page.locator('#theme-dialog').waitFor();
+}
+
+async function chooseTheme(page, theme) {
+  await page.locator(`[data-theme-option="${theme}"]`).click();
+  assert.equal(await page.locator('html').getAttribute('data-theme'), theme);
+  assert.equal(await page.locator(`[data-theme-option="${theme}"]`).getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.locator('[data-theme-option][aria-pressed="true"]').count(), 1);
+}
+
+async function fitsViewport(page, selector) {
+  const box = await page.locator(selector).boundingBox();
+  const {width, height} = page.viewportSize();
+  assert.ok(box && box.x >= 0 && box.y >= 0 && box.x + box.width <= width + 1 && box.y + box.height <= height + 1, `${selector} fits ${width}×${height}: ${JSON.stringify(box)}`);
+}
+
+async function readableDarkSurface(page, selector) {
+  const {background, color} = await page.locator(selector).evaluate(node => {
+    const style = getComputedStyle(node);
+    return {background: style.backgroundColor, color: style.color};
+  });
+  const channels = value => value.match(/[\d.]+/g).slice(0, 3).map(Number);
+  const luminance = value => channels(value).map(channel => channel / 255).map(channel => channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4).reduce((sum, channel, index) => sum + channel * [.2126, .7152, .0722][index], 0);
+  assert.ok(Math.max(...channels(background)) < 128, `${selector} has a dark surface: ${background}`);
+  const light = luminance(color), dark = luminance(background);
+  assert.ok((Math.max(light, dark) + .05) / (Math.min(light, dark) + .05) >= 4.5, `${selector} text contrast: ${color} on ${background}`);
+}
+
 async function timelineIds(page) {
   return page.locator('.timeline > .event').evaluateAll(nodes => nodes.map(node => node.id.slice('event-'.length)));
 }
@@ -61,8 +93,10 @@ try {
   const example = JSON.parse(await readFile(join(root, 'examples/trip.json'), 'utf8'));
   // Exercise the lowest-input case even if the documentation later adds more sample days.
   const minimal = {...minimalExample, id: 'ui-minimal', days: [{city: minimalExample.days[0].city, events: [{title: '自由探索', label: '时间待定'}]}]};
+  delete minimal.theme;
   const rich = structuredClone(example);
   rich.id = 'ui-regression';
+  rich.theme = 'purple';
   rich.sourceURL = 'https://example.com/guide';
   rich.checklist ||= [];
   rich.checklist.push({id: 'panel', text: '核对页面交互', detail: '检查待办 ID 与页面容器互不影响。'});
@@ -110,7 +144,7 @@ try {
     } finally { await context.close(); }
   }
 
-  await scenario('cover countdown, swipe and click entry; full-page visual checks', 'full', departure - 190 * 86400000, async page => {
+  await scenario('cover countdown, swipe and click entry; full-page visual checks', 'full', departure - 190 * 86400000 - 5000, async page => {
     assert.equal(await page.locator('#trip-cover').isVisible(), true);
     assert.equal(await page.locator('[data-cover-unit="days"]').innerText(), '190');
     const seconds = await page.locator('[data-cover-unit="seconds"]').innerText();
@@ -162,6 +196,7 @@ try {
   }, false, true);
 
   await scenario('one day without places or bookings, responsive views', 'minimal', Date.parse(`${minimal.startDate}T03:00:00Z`), async page => {
+    assert.equal(await page.locator('html').getAttribute('data-theme'), 'green');
     assert.equal(await page.title(), minimal.title);
     assert.equal(await page.locator('#dates [data-day]').count(), 1);
     for (const width of [320, 390, 1440]) {
@@ -176,6 +211,84 @@ try {
       await screenshot(page, `minimal-${width}`);
     }
   });
+
+  await scenario('themes switch live, preserve drafts and state, fit screens and remember each trip', 'full', departure - 86400000, async page => {
+    assert.equal(await page.locator('html').getAttribute('data-theme'), 'purple', 'Input theme applies before a saved preference exists');
+    const url = page.url();
+    const colors = new Set();
+    for (const theme of ['green', 'pink', 'purple', 'summer', 'autumn', 'winter', 'holiday', 'dark']) {
+      await themes(page);
+      await chooseTheme(page, theme);
+      colors.add(await page.locator('body').evaluate(node => `${getComputedStyle(node).backgroundColor}/${getComputedStyle(node).color}`));
+      assert.equal(page.url(), url, 'Changing theme keeps the current URL');
+      await page.keyboard.press('Escape');
+      assert.equal(await page.locator('#trip-cover').isVisible(), true, 'Changing a cover theme does not enter the trip');
+      await screenshot(page, `theme-${theme}-cover-390`);
+    }
+    assert.equal(colors.size, 8, 'Every preset visibly changes the rendered palette');
+    await enter(page);
+    await tab(page, 'timeline');
+    const ticket = model.journey.tickets.find(ticket => model.trip.days.some(day => day.events.some(event => ticket.eventIds.includes(event.id) && (!event.roles || event.roles.includes(model.trip.roles[0].id)))));
+    const ticketDay = model.trip.days.findIndex(day => day.events.some(event => ticket.eventIds.includes(event.id)));
+    await page.locator(`#dates [data-day="${ticketDay}"]`).click();
+    await page.locator(`[data-ticket="${ticket.id}"]`).selectOption('booked');
+    await role(page, model.trip.roles[1].id);
+    await page.locator('#dates [data-day="0"]').click();
+    await page.locator('[data-plan="B"]').click();
+    await tab(page, 'prepare');
+    // Mobile hides the tool dock while the todo editor is open.
+    await page.setViewportSize({width: 1440, height: 844});
+    await page.locator('#prep-add-summary').click();
+    await page.locator('[name="text"]').fill('切换配色也要保留的草稿');
+    await page.locator('[name="description"]').fill('还没有保存');
+    const form = await page.locator('#custom-todo-form').elementHandle();
+    const savedState = () => page.evaluate(id => Object.entries(localStorage).filter(([key]) => key.startsWith(`travel-handbook:${id}:`) && !key.endsWith(':theme')).sort(), rich.id);
+    const before = await savedState();
+    await themes(page);
+    await chooseTheme(page, 'pink');
+    await page.keyboard.press('Escape');
+    assert.equal(await form.evaluate(node => node.isConnected), true, 'Theme changes retain the existing form DOM');
+    assert.equal(await page.locator('[name="text"]').inputValue(), '切换配色也要保留的草稿');
+    assert.equal(await page.locator('[name="description"]').inputValue(), '还没有保存');
+    assert.deepEqual(await savedState(), before, 'Theme changes preserve role, plan and ticket state');
+    await page.locator('#prep-add-summary').click();
+
+    for (const theme of ['pink', 'purple', 'dark']) {
+      for (const width of [320, 390, 1440]) {
+        await page.setViewportSize({width, height: 844});
+        await toolsMenu(page);
+        await fitsViewport(page, '#navigation-panel');
+        await page.locator('.theme-shortcut').click();
+        await chooseTheme(page, theme);
+        await fitsViewport(page, '#theme-dialog');
+        await noOverflow(page, `${theme} dialog at ${width}`);
+        if (theme === 'dark') await readableDarkSurface(page, '#theme-dialog');
+        await screenshot(page, `theme-${theme}-dialog-${width}`);
+        await page.keyboard.press('Escape');
+        for (const view of ['prepare', 'timeline', 'overview', 'bookings', 'transport', 'packing', 'budget']) {
+          await tab(page, view);
+          await noOverflow(page, `${theme} ${view} at ${width}`);
+          if (['prepare', 'timeline', 'overview', 'bookings'].includes(view)) await screenshot(page, `theme-${theme}-${view}-${width}`);
+        }
+      }
+    }
+    await readableDarkSurface(page, 'body');
+    await tab(page, 'prepare');
+    await page.locator('#prep-add-summary').click();
+    await readableDarkSurface(page, '#custom-todo-form [name="text"]');
+    await page.reload();
+    assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark', 'Saved theme wins over the input default');
+    await enter(page);
+    assert.deepEqual(await savedState(), before, 'Saved role, plan and ticket state survive reload');
+    await page.goto(`${base}/minimal/`);
+    assert.equal(await page.locator('html').getAttribute('data-theme'), 'green', 'Another trip does not inherit the saved theme');
+    await themes(page); await chooseTheme(page, 'pink');
+    await page.goto(`${base}/full/`);
+    assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark');
+    await page.evaluate(id => localStorage.setItem(`travel-handbook:${id}:theme`, JSON.stringify('missing-theme')), rich.id);
+    await page.reload();
+    assert.equal(await page.locator('html').getAttribute('data-theme'), 'purple', 'Invalid saved theme falls back to the input default');
+  }, false, true);
 
   await scenario('roles and per-day alternative plans persist independently', 'full', during, async page => {
     const [firstRole, secondRole] = model.trip.roles;
@@ -307,6 +420,10 @@ try {
     await tab(page, 'overview');
     assert.equal(await page.locator('.overview-day').count(), model.trip.days.length);
     assert.equal(await page.locator('.overview-map-open img').evaluate(image => image.complete && image.naturalWidth > 0), true);
+    await themes(page); await chooseTheme(page, 'dark');
+    await page.keyboard.press('Escape');
+    await page.reload({waitUntil: 'load'}); await enter(page);
+    assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark', 'Offline theme selection remains saved');
   }, true);
 } finally {
   await browser?.close();

@@ -4,6 +4,7 @@ import {mkdir, readFile, readdir, realpath, stat, writeFile} from 'node:fs/promi
 import {dirname, join, resolve, sep} from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
 import '../assets/template/time.js';
+import '../assets/template/themes.js';
 
 const template = fileURLToPath(new URL('../assets/template/', import.meta.url));
 const T = globalThis.TripTime;
@@ -57,6 +58,8 @@ function status(value) {
 
 export function normalize(input) {
   object(input);
+  const theme = input.theme === undefined ? 'green' : text(input.theme);
+  if (!Object.hasOwn(globalThis.TripThemes, theme)) throw new Error(`未知主题 theme：${theme}，请选择 ${Object.keys(globalThis.TripThemes).join(' / ')}`);
   const title = text(input.title);
   if (!title) throw new Error('请提供 title');
   const inputDays = list(input.days);
@@ -186,6 +189,7 @@ export function normalize(input) {
   });
   const cover = input.cover ? object(input.cover) : {};
   const meta = {id: id(text(input.id, `trip-${hash(title + startDate)}`)), title, zone: timezone, travelers: text(input.travelers, '同行旅人'), eyebrow: text(cover.eyebrow, `TRAVEL / ${startDate.slice(0, 4)}`), coverTitle: text(cover.title, '把时间留给风景，\n把旅程留给自己。'), coverKicker: text(cover.kicker, `下一站，${days[0].city}`), route: [...new Set(days.map(day => day.city))].join(' · '), coverImage: picture(cover.image, 'assets/cover.svg'), coverCredit: text(cover.credit, cover.image ? '用户提供图片' : '模板风景示意，非目的地实景'), sourceNote: text(input.sourceNote, '依据提供的攻略整理 · 未确认项目请行前复核'), overviewNote: text(input.overviewNote), sourceURL: input.sourceURL ? link(input.sourceURL) : ''};
+  meta.theme = theme;
   const sections = Object.fromEntries(['bookings', 'transport', 'packing', 'budget', 'overview', 'checklist'].map(key => [key, []]));
   const table = (title, headers, rows) => ({title, text: '', tables: [[headers, ...rows]], links: []});
   if (Object.keys(journey.flights).length) sections.bookings.push(table('航班', ['航班', '出发', '抵达', '状态'], Object.values(journey.flights).map(f => [f.flightNo, `${f.depart.date} ${f.depart.time} ${f.depart.city}`, `${f.arrival.date} ${f.arrival.time} ${f.arrival.city}`, `${f.status} · ${f.paid}`])));
@@ -215,7 +219,8 @@ function routeSVG(days) {
 export async function build(input, output, assetsDirectory) {
   const data = normalize(input);
   const files = new Map();
-  for (const name of ['index.html', 'style.css', 'time.js', 'app.js', 'assets/cover.svg', 'assets/placeholder.svg']) files.set(name, await readFile(join(template, name)));
+  for (const name of ['index.html', 'style.css', 'themes.css', 'time.js', 'themes.js', 'app.js', 'assets/cover.svg', 'assets/placeholder.svg']) files.set(name, await readFile(join(template, name)));
+  files.set('index.html', files.get('index.html').toString().replace('<html lang="zh-CN">', `<html lang="zh-CN" data-theme="${data.trip.meta.theme}">`));
   const imagePaths = [data.trip.meta.coverImage, ...data.spots.flatMap(p => [p.image, ...p.souvenirs.map(item => item.image)])].filter(path => !path.startsWith('https:') && !files.has(path));
   for (const path of new Set(imagePaths)) {
     if (!assetsDirectory || !path.startsWith('assets/custom/')) throw new Error(`${path} 缺少素材，请用 assets/custom/文件名 并提供 --assets 素材目录`);

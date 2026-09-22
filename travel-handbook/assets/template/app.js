@@ -20,7 +20,7 @@
   document.title = meta.title;
   const dateRange = `${days[0].date.replaceAll('-', '.')} — ${days.at(-1).date.replaceAll('-', '.')}`;
   $('.cover-top span').textContent = meta.eyebrow;
-  $('.cover-top span:last-child').textContent = meta.travelers;
+  $('#cover-travelers').textContent = meta.travelers;
   $('.cover-kicker').textContent = meta.coverKicker;
   $('#cover-title').textContent = meta.coverTitle;
   $('.cover-route').textContent = meta.route;
@@ -81,8 +81,26 @@
   const mapSearchURL = query => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
   const mapDirectionsURL = (origin, destination) => `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&travelmode=driving`;
   const setThemeColor = color => document.querySelector('meta[name="theme-color"]')?.setAttribute('content', color);
-  const coverThemeColor = '#ffffff';
-  const contentThemeColor = '#f6f8f4';
+
+  function updateThemeColor() {
+    const style = getComputedStyle(document.documentElement);
+    setThemeColor(style.getPropertyValue($('#trip-cover').hidden ? '--paper' : '--cover-surface').trim() || style.getPropertyValue('--paper').trim());
+  }
+
+  function applyTheme(value, persist = false) {
+    const theme = Object.hasOwn(window.TripThemes, value) ? value : meta.theme || 'green';
+    document.documentElement.dataset.theme = theme;
+    $('#theme-current').textContent = window.TripThemes[theme].name;
+    for (const button of document.querySelectorAll('[data-theme-option]')) button.setAttribute('aria-pressed', String(button.dataset.themeOption === theme));
+    $('#theme-feedback').textContent = persist && !save('theme', theme) ? '已切换配色；浏览器未能保存，下次打开可能需要重新选择。' : `当前：${window.TripThemes[theme].name} · 选择会记在这台设备上`;
+    updateThemeColor();
+  }
+
+  function openThemes() {
+    closeFloatingPanels();
+    $('#theme-dialog').showModal();
+    $('#theme-dialog [aria-pressed="true"]').focus();
+  }
 
   function tripZone() {
     return days[T.dayIndex(days, now()).index].zone || meta.zone;
@@ -119,7 +137,7 @@
     const wasVisible = !cover.hidden;
     cover.hidden = !visible;
     document.body.classList.toggle('cover-open', visible && !coverMoving);
-    setThemeColor(visible ? coverThemeColor : contentThemeColor);
+    updateThemeColor();
     if (!visible) {
       if (wasVisible && remaining === 0) goNow();
       return;
@@ -823,6 +841,8 @@
     });
     const button = event.target.closest('button'); if (!button) return;
     if (button.id === 'enter-trip') enterTrip();
+    else if (button.dataset.action === 'choose-theme') openThemes();
+    else if (button.dataset.themeOption) applyTheme(button.dataset.themeOption, true);
     else if (button.id === 'role-menu-button') toggleFloatingPanel('role-panel', 'role-menu-button');
     else if (button.id === 'navigation-menu-button') {
       if (document.body.classList.contains('tools-open')) closeFloatingPanels();
@@ -977,6 +997,8 @@
 
   const zones = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : [meta.zone, 'UTC', 'Asia/Shanghai', 'Asia/Tokyo', 'Europe/London', 'America/New_York'];
   $('#zone-options').innerHTML = zones.map(zone => `<option value="${esc(zone)}"></option>`).join('');
+  $('.theme-grid').innerHTML = Object.entries(window.TripThemes).map(([id, theme]) => `<button class="theme-option" type="button" data-theme-option="${id}" aria-pressed="false"><span class="theme-swatches" aria-hidden="true"><i></i><i></i><i></i></span><strong>${esc(theme.name)}</strong><small>${esc(theme.description)}</small></button>`).join('');
+  applyTheme(read('theme', meta.theme || 'green'));
 
   function tick() {
     updateClock();

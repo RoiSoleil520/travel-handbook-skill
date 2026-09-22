@@ -1,0 +1,309 @@
+/* Shared surfaces keep every page in the same palette; status colors retain meaning. */
+:root,
+:root[data-theme="green"] {
+  color-scheme: light;
+  --ink: #173c36;
+  --muted: #596c63;
+  --line: #dbe5db;
+  --paper: #f6f8f4;
+  --surface: #fffffd;
+  --surface-soft: #edf2e9;
+  --accent: #276f58;
+  --green: #d4e9bc;
+  --accent-soft: #e5eedf;
+  --strong: #173c36;
+  --on-strong: #f7faef;
+  --on-strong-muted: #c6d7cd;
+  --on-accent: #ffffff;
+  --cover-surface: #173c36;
+  --warning-surface: #fff4df;
+  --warning-ink: #79501d;
+  --warning-line: #e3cda5;
+  --success-surface: #e4f0e5;
+  --success-ink: #326341;
+  --danger-surface: #fbedeb;
+  --danger-ink: #9b4236;
+  --orange: var(--warning-ink);
+  --focus: var(--accent);
+  --shadow: #142c251c;
+  --backdrop: #10241e70;
+}
+:root[data-theme="pink"] {
+  --ink: #593a47; --muted: #735b66; --line: #eadbe1;
+  --paper: #fbf5f5; --surface: #fffcfc; --surface-soft: #f5e8ed;
+  --accent: #8e4e66; --green: #f0ccda; --accent-soft: #f2dfe7;
+  --strong: #563543; --on-strong: #fff7f8; --on-strong-muted: #e4cbd5;
+  --cover-surface: #563543;
+}
+:root[data-theme="purple"] {
+  --ink: #463654; --muted: #6b5d75; --line: #e2dce9;
+  --paper: #f7f5fb; --surface: #fefcff; --surface-soft: #eee8f4;
+  --accent: #76548c; --green: #dfcdef; --accent-soft: #e9ddf2;
+  --strong: #44324f; --on-strong: #fbf6ff; --on-strong-muted: #d8cadd;
+  --cover-surface: #44324f;
+}
+:root[data-theme="summer"] {
+  --ink: #244b52; --muted: #566b71; --line: #d6e5e6;
+  --paper: #f3f9f8; --surface: #fcfffd; --surface-soft: #e7f1f0;
+  --accent: #25727a; --green: #bde5df; --accent-soft: #d9eeea;
+  --strong: #214950; --on-strong: #f4fffb; --on-strong-muted: #bed8d8;
+  --cover-surface: #214950;
+}
+:root[data-theme="autumn"] {
+  --ink: #594335; --muted: #705d4e; --line: #e8ddce;
+  --paper: #faf6ef; --surface: #fffdfa; --surface-soft: #f3ebdf;
+  --accent: #895831; --green: #efd6ae; --accent-soft: #eee0cb;
+  --strong: #55402f; --on-strong: #fff8e9; --on-strong-muted: #dfceba;
+  --cover-surface: #55402f;
+}
+:root[data-theme="winter"] {
+  --ink: #344b63; --muted: #5b6979; --line: #dce3ec;
+  --paper: #f4f7fb; --surface: #fdfeff; --surface-soft: #eaf0f7;
+  --accent: #45668b; --green: #ccdfef; --accent-soft: #dfe9f4;
+  --strong: #30455f; --on-strong: #f4f8ff; --on-strong-muted: #ccd8e6;
+  --cover-surface: #30455f;
+}
+:root[data-theme="holiday"] {
+  --ink: #633e36; --muted: #755b52; --line: #eadbcf;
+  --paper: #fbf5ed; --surface: #fffcf7; --surface-soft: #f5e8dd;
+  --accent: #9b4939; --green: #efd7ad; --accent-soft: #f2dfd3;
+  --strong: #693b32; --on-strong: #fff7e7; --on-strong-muted: #e8cebe;
+  --cover-surface: #693b32;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e1eaf0; --muted: #acbecb; --line: #364957;
+  --paper: #14222e; --surface: #1c2d3a; --surface-soft: #253a49;
+  --accent: #a6d3cc; --green: #b6d8cf; --accent-soft: #2c454d;
+  --strong: #304c5b; --on-strong: #eff7f8; --on-strong-muted: #c6d8df;
+  --on-accent: #152a30; --cover-surface: #142332;
+  --warning-surface: #3c3326; --warning-ink: #efd29c; --warning-line: #69573d;
+  --success-surface: #263f36; --success-ink: #b7ddbc;
+  --danger-surface: #482f31; --danger-ink: #f3b6ad;
+  --shadow: #0000003d; --backdrop: #07121bcc;
+}
+
+/* These rules also replace the original template's later, hard-coded colors. */
+:root[data-theme] { color: var(--ink); background: var(--paper); }
+:root[data-theme] body { background: var(--paper); }
+:root[data-theme] :is(.event-card, .day-notes, .side-card, .reference-card, .focus-item,
+  .spot-detail, .custom-todo, .daily-stay, .overview-day, .all-events, .task-group,
+  .floating-panel, .auth-card, .skip, .quiet-button, .task-official-link, dialog) {
+  background: var(--surface); border-color: var(--line); color: var(--ink);
+}
+:root[data-theme] :is(.source-only, .plan-toggle, .souvenir-card, .detail-pagination button,
+  .spot-link, .spot-facts, .spot-location, .stay-compact, .browse-notice,
+  .custom-todos form, .role-shortcut, .role-picker > div, .plan-buttons button, .secondary,
+  .tools-close, .icon-button, .map-zoom-tools button, .route span) {
+  background: var(--surface-soft); border-color: var(--line); color: var(--ink);
+}
+:root[data-theme] :is(input, select, textarea) {
+  color: var(--ink); background: var(--surface); border-color: var(--line); accent-color: var(--accent);
+}
+:root[data-theme] :is(input, textarea)::placeholder { color: var(--muted); opacity: 1; }
+:root[data-theme] :is(.event-card p, .note-body, .reminder p, .focus-item p,
+  .plan-toggle p, .source-only summary, .spot-lead, .spot-detail-body li,
+  .souvenir-card p, .overview-highlights > span, .overview-highlights time,
+  .overview-stay, .brand .brand-eyebrow, .desktop-brand > span, .tools-heading p,
+  .prep-intro .eyebrow, .prep-intro > p:last-child, .prep-countdown span,
+  .prep-list-heading h3 > span, .prep-sync, .todo-date > summary,
+  .todo-date > summary > small, .todo-date-footer button, .todo-form-actions > button:first-child) {
+  color: var(--muted);
+}
+:root[data-theme] .event-essential { color: var(--ink) !important; }
+:root[data-theme] :is(.spot-links, .reminder, .overview-stay, .spot-facts span + span,
+  .todo-form-actions, .prep-countdown, .clock-button, .settings-label, .empty-todos) { border-color: var(--line); }
+:root[data-theme] :is(.alternate-time, .spot-link small, .nav-icon) { color: var(--accent); }
+:root[data-theme] :is(.brand-mark, .journey-icon, .daily-stay > span, .now-card,
+  .flight-card, .return-now, .save-feedback, .role-picker button[aria-pressed=true],
+  .plan-buttons button[aria-pressed=true]) { background: var(--strong); color: var(--on-strong); }
+:root[data-theme] :is(.brand-mark, .journey-icon, .daily-stay > span, .return-now span,
+  .role-picker button[aria-pressed=true]) { color: var(--green); }
+:root[data-theme] :is(.primary, .spot-map-link) { background: var(--accent); color: var(--on-accent); }
+:root[data-theme] :is(.focus-actions a, .now-open) { background: var(--green); color: var(--cover-surface); }
+:root[data-theme] :is(.focus-actions button, .save-feedback button) {
+  background: color-mix(in srgb, var(--strong) 85%, white); color: var(--on-strong);
+}
+:root[data-theme] :is(.now-card .eyebrow, .next-line > span, .next-line > button,
+  .flight-route a, .flight-number strong, .flight-number i, .flight-countdown strong) { color: var(--green); }
+:root[data-theme] :is(.now-card p, .now-tag, .flight-card-top, .flight-card-top strong,
+  .flight-route span, .flight-route small, .flight-countdown span, .flight-countdown small) { color: var(--on-strong-muted); }
+:root[data-theme] :is(.now-card .focus-time, .next-line strong) { color: var(--on-strong); }
+:root[data-theme] :is(.now-card .next-line, .flight-countdown, .now-card .flight-card) {
+  border-color: color-mix(in srgb, var(--strong) 65%, var(--on-strong-muted));
+}
+:root[data-theme] .now-card .focus-caution { color: #f5d8a6; }
+:root[data-theme] :is(.now-card, .return-now, .save-feedback, .floating-panel, dialog) { box-shadow: 0 12px 40px var(--shadow); }
+:root[data-theme] .pill { color: var(--muted); background: var(--surface-soft); }
+:root[data-theme] :is(.pill.live, .auth-status.success) { color: var(--success-ink); background: var(--success-surface); }
+:root[data-theme] :is(.error, .auth-status.error) { color: var(--danger-ink); }
+:root[data-theme] :is(.focus-item > span, .route .selected, .spot-location-icon,
+  .overview-ticket, .ticket-disclosure) { background: var(--accent-soft); color: var(--accent); border-color: var(--line); }
+:root[data-theme] :is(.pill.pending, .overview-ticket.unpaid, .simulation-banner,
+  .prep-deadline, .day-reminders, .pending-transfer, .ticket-card,
+  .ticket-disclosure.needs-ticket, .spot-ticket-section .ticket-disclosure) {
+  background: var(--warning-surface); color: var(--warning-ink); border-color: var(--warning-line);
+}
+:root[data-theme] :is(.simulation-banner button, .prep-date strong, .prep-date span,
+  .prep-deadline p, .day-reminders h3 small, .day-reminders button,
+  .ticket-card .eyebrow, .ticket-card p, .ticket-price, .ticket-status span,
+  .ticket-card > small, .needs-ticket > .ticket-heading > strong) { color: var(--warning-ink); }
+:root[data-theme] :is(.day-reminders button + button, .ticket-status select) { border-color: var(--warning-line); }
+:root[data-theme] .ticket-status select { color: var(--ink); background: var(--surface); }
+:root[data-theme] :is(.hotel-card, .transfer-card) { background: var(--surface-soft); border-color: var(--line); }
+:root[data-theme] .pending-transfer { background: var(--warning-surface); border-color: var(--warning-line); }
+:root[data-theme] .pending-transfer :is(p, small) { color: var(--warning-ink); }
+
+/* Timeline and preparations. */
+:root[data-theme] .day-heading .day-count { color: var(--line); }
+:root[data-theme] .event::before { background: var(--line); }
+:root[data-theme] .event::after { background: var(--paper); border-color: var(--muted); }
+:root[data-theme] .event.past::after { background: var(--surface-soft); border-color: var(--muted); }
+:root[data-theme] .event.past .event-time { color: var(--muted); }
+:root[data-theme] .event.current .event-card { background: var(--surface); border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+:root[data-theme] .event.current::after { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+:root[data-theme] .prep-overview.prep-heading { background: var(--accent-soft); border-color: var(--line); }
+:root[data-theme] .preparation-page .prep-completion { border-color: var(--line); }
+:root[data-theme] :is(.prep-completion progress, .preparation-page .prep-completion progress) { background: var(--line); }
+:root[data-theme] .prep-completion progress::-webkit-progress-bar { background: var(--line); }
+:root[data-theme] .prep-completion progress::-webkit-progress-value { background: var(--accent); }
+:root[data-theme] .prep-completion progress::-moz-progress-bar { background: var(--accent); }
+:root[data-theme] .preparation-page .prep-completion progress::-webkit-progress-bar { background: var(--line); }
+:root[data-theme] .prep-progress i { background: linear-gradient(90deg, var(--green) var(--progress), var(--strong) var(--progress)); }
+:root[data-theme] .preparation-page #prep-add { border-color: var(--line); }
+:root[data-theme] .preparation-page #prep-add[open],
+:root[data-theme] .preparation-page #prep-add form { background: var(--surface); }
+:root[data-theme] .preparation-page #prep-add :is(input, textarea) { background: var(--paper); border-color: var(--line); color: var(--ink); }
+:root[data-theme] .preparation-page #prep-add :is(input, textarea)::placeholder { color: var(--muted); }
+:root[data-theme] .preparation-page #prep-add :is(summary > small, form label small) { color: var(--muted); }
+:root[data-theme] .preparation-page .task-list { background: var(--surface); border-color: var(--line); }
+:root[data-theme] .preparation-page .task-card { border-color: var(--line); }
+:root[data-theme] .preparation-page .task-timed:not(.done) { background: var(--surface-soft); }
+:root[data-theme] .preparation-page .task-summary { color: var(--muted); }
+:root[data-theme] .preparation-page .task-date { color: var(--accent); background: var(--accent-soft); }
+:root[data-theme] .preparation-page .custom-todo button { color: var(--muted); }
+:root[data-theme] .preparation-page .custom-todo [data-edit-todo] { color: var(--accent); }
+:root[data-theme] .task-card .check-row input { background: var(--surface); border-color: var(--muted); }
+:root[data-theme] .task-card .check-row input:checked { background: var(--accent); border-color: var(--accent); box-shadow: inset 0 0 0 5px var(--surface); }
+:root[data-theme] .preparation-page .task-card input[type=checkbox] { box-shadow: none; }
+:root[data-theme] .prep-reference :is(.task-group, .source-only) { background: transparent; }
+
+/* Dates, menus, dialogs and geographic overview. */
+:root[data-theme] .sticky-nav { background: color-mix(in srgb, var(--paper) 96%, transparent); border-color: var(--line); }
+:root[data-theme] .sticky-nav .dates { scrollbar-color: var(--line) transparent; }
+:root[data-theme] .dates::-webkit-scrollbar-thumb { background: var(--line); }
+:root[data-theme] .dates .date-button,
+:root[data-theme] .dates .date-button strong { color: var(--muted); }
+:root[data-theme] .dates .date-button.active { color: var(--accent); }
+:root[data-theme] .dates .date-button.active strong { color: var(--ink); }
+:root[data-theme] .dates .date-button.active::before,
+:root[data-theme] .dates .date-button.today::after { background: var(--accent); }
+:root[data-theme] .floating-tools .floating-panel { border-color: var(--line); }
+:root[data-theme] .floating-tools .navigation-panel .tabs button { background: var(--surface-soft); color: var(--muted); }
+:root[data-theme] .floating-tools .navigation-panel .tabs button[aria-selected=true] { background: var(--accent-soft); color: var(--accent); box-shadow: inset 0 0 0 1px var(--line); }
+:root[data-theme] .navigation-panel .tabs button[aria-selected=true] .nav-icon { color: var(--accent); }
+:root[data-theme] .floating-actions { background: color-mix(in srgb, var(--surface) 95%, transparent); border-color: var(--line); box-shadow: 0 6px 28px var(--shadow); }
+:root[data-theme] .floating-actions .dock-action { color: var(--muted); }
+:root[data-theme] .floating-actions #dock-now { background: var(--strong); color: var(--on-strong); }
+:root[data-theme] .floating-actions #navigation-menu-button[aria-current=page],
+:root[data-theme] .floating-actions #navigation-menu-button[aria-expanded=true] { background: var(--accent-soft); color: var(--accent); }
+:root[data-theme] .role-shortcut[aria-expanded=true] { box-shadow: 0 0 0 3px var(--accent-soft); }
+:root[data-theme] dialog::backdrop,
+:root[data-theme] .tools-backdrop { background: var(--backdrop); }
+:root[data-theme] .icon-button { width: 44px; height: 44px; flex: none; }
+:root[data-theme] :is(.overview-route, .overview-stops button) { background: var(--surface-soft); border-color: var(--line); color: var(--ink); }
+:root[data-theme] :is(.overview-route-heading, .overview-flights b) { color: var(--ink); }
+:root[data-theme] :is(.overview-route-heading p, .overview-stops small, .overview-route-note,
+  .overview-flights, .overview-map-source, .overview-day-title b) { color: var(--muted); }
+:root[data-theme] .overview-flights { border-color: var(--line); }
+:root[data-theme] .overview-stops b { background: var(--accent); color: var(--on-accent); }
+:root[data-theme] :is(.overview-map-open, .map-zoom-viewport, .spot-hero) { background: var(--surface-soft); }
+:root[data-theme] :is(.overview-map-open > span, .spot-hero figcaption) { background: var(--strong); color: var(--on-strong); }
+:root[data-theme] .overview-day.is-today { box-shadow: 0 0 0 2px var(--accent-soft); }
+:root[data-theme] :is(button, a, input, select, textarea, summary):focus-visible { outline-color: var(--focus); }
+
+/* Photo colors stay intact; only their existing cover overlay follows the theme. */
+:root[data-theme] .trip-cover {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--cover-surface) 86%, transparent), color-mix(in srgb, var(--cover-surface) 30%, transparent)),
+    linear-gradient(0deg, color-mix(in srgb, var(--cover-surface) 75%, transparent), transparent 75%),
+    var(--cover-image, url('assets/cover.svg')) left center / cover no-repeat;
+  color: #ffffff;
+}
+:root[data-theme] :is(.cover-kicker, .cover-route, .cover-countdown span, .cover-date, .cover-bottom small) { color: #f0f3ef; }
+:root[data-theme] .cover-enter { background: var(--green); color: var(--cover-surface); }
+:root[data-theme] .prep-hero {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--cover-surface) 96%, transparent) 5%, color-mix(in srgb, var(--cover-surface) 82%, transparent) 43%, color-mix(in srgb, var(--cover-surface) 45%, transparent)),
+    var(--cover-image, url('assets/cover.svg')) center 48% / cover;
+}
+:root[data-theme] :is(.prep-hero .eyebrow, .prep-progress strong) { color: var(--green); }
+:root[data-theme] :is(.prep-hero p, .prep-progress small, .prep-progress strong span, .prep-departure span) { color: var(--on-strong-muted); }
+
+/* Theme picker: deliberate palettes, immediate preview, one saved preference. */
+.theme-shortcut, .cover-theme-button {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  min-height: 44px; padding: 9px 12px; color: var(--ink); background: var(--surface-soft);
+  border: 1px solid var(--line); border-radius: 10px; font-size: 13px;
+}
+.theme-shortcut { width: 100%; text-align: left; }
+.theme-shortcut strong { margin-left: auto; color: var(--accent); font-size: 12px; font-weight: 600; }
+.cover-theme-button {
+  flex-shrink: 0; color: white; background: color-mix(in srgb, var(--cover-surface) 70%, transparent);
+  border-color: #ffffff70; font-size: 12px; letter-spacing: .02em;
+}
+.theme-shortcut svg, .cover-theme-button svg { flex: none; }
+#theme-dialog { max-width: 620px; }
+#theme-dialog .dialog-title form { margin: 0; }
+.theme-intro { font-size: 13px; line-height: 1.7; color: var(--muted); margin: 0 0 20px; }
+.theme-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.theme-option {
+  position: relative; min-width: 0; min-height: 114px; padding: 13px;
+  border: 1px solid var(--line); border-radius: 13px; background: var(--surface);
+  color: var(--ink); text-align: left; transition: border-color .15s, box-shadow .15s;
+}
+.theme-option strong { display: block; font-size: 14px; line-height: 1.5; }
+.theme-option small { display: block; margin-top: 3px; font-size: 11px; line-height: 1.6; color: var(--muted); }
+.theme-option[aria-pressed=true] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); background: var(--surface-soft); }
+.theme-option[aria-pressed=true]::after { content: '✓'; position: absolute; right: 12px; top: 12px; color: var(--accent); font-weight: 700; }
+.theme-swatches { display: flex; width: 76px; height: 23px; margin: 0 0 11px; border: 1px solid #00000012; border-radius: 7px; overflow: hidden; }
+.theme-swatches i { width: 33.333%; background: var(--swatch-paper); }
+.theme-swatches i:nth-child(2) { background: var(--swatch-accent); }
+.theme-swatches i:nth-child(3) { background: var(--swatch-ink); }
+.theme-option[data-theme-option="green"] { --swatch-paper: #f6f8f4; --swatch-accent: #9dbb83; --swatch-ink: #173c36; }
+.theme-option[data-theme-option="pink"] { --swatch-paper: #fbf5f5; --swatch-accent: #dba2b7; --swatch-ink: #593a47; }
+.theme-option[data-theme-option="purple"] { --swatch-paper: #f7f5fb; --swatch-accent: #b69dce; --swatch-ink: #463654; }
+.theme-option[data-theme-option="summer"] { --swatch-paper: #f3f9f8; --swatch-accent: #86c6c0; --swatch-ink: #244b52; }
+.theme-option[data-theme-option="autumn"] { --swatch-paper: #faf6ef; --swatch-accent: #d1aa76; --swatch-ink: #594335; }
+.theme-option[data-theme-option="winter"] { --swatch-paper: #f4f7fb; --swatch-accent: #a5c0dc; --swatch-ink: #344b63; }
+.theme-option[data-theme-option="holiday"] { --swatch-paper: #fbf5ed; --swatch-accent: #c57d65; --swatch-ink: #633e36; }
+.theme-option[data-theme-option="dark"] { --swatch-paper: #14222e; --swatch-accent: #a6d3cc; --swatch-ink: #304c5b; }
+
+@media (min-width: 1100px) {
+  :root[data-theme] .floating-tools { background: var(--surface); }
+  :root[data-theme] .floating-tools .navigation-panel,
+  :root[data-theme] .floating-tools .navigation-panel .tabs button { background: transparent; box-shadow: none; }
+  :root[data-theme] .floating-tools .navigation-panel .tabs button[aria-selected=true] { background: var(--accent-soft); }
+  :root[data-theme] .floating-actions { background: transparent; box-shadow: none; }
+  .menu-settings .theme-shortcut { padding-inline: 8px; }
+}
+@media (hover: hover) {
+  :root[data-theme] :is(.dates .date-button:hover, .overview-day-open:hover, .overview-stops button:hover,
+    .spot-link:hover, .tools-close:hover, .theme-shortcut:hover, .plan-buttons button:hover),
+  :root[data-theme] .floating-tools .navigation-panel .tabs button:hover,
+  :root[data-theme] .preparation-page #prep-add > summary:hover,
+  :root[data-theme] .preparation-page .task-card:has(input:focus-visible) { background: var(--accent-soft); color: var(--ink); }
+  :root[data-theme] :is(.spot-link:hover, .theme-option:hover) { border-color: var(--accent); }
+  :root[data-theme] :is(.spot-map-link:hover, .todo-form-actions .primary:hover) { background: var(--accent); filter: brightness(.93); }
+  :root[data-theme] .cover-enter:hover { background: var(--green); filter: brightness(1.08); }
+  :root[data-theme] .preparation-page .custom-todo button:hover { background: var(--danger-surface); color: var(--danger-ink); }
+  :root[data-theme] .preparation-page .custom-todo [data-edit-todo]:hover { background: var(--accent-soft); color: var(--accent); }
+}
+:root[data-theme] .dates .date-button:active { background: var(--accent-soft); }
+@media (max-width: 360px) {
+  #theme-dialog { padding: 18px; }
+  .theme-grid { gap: 9px; }
+  .theme-option { padding: 11px; }
+  .cover-theme-button { padding-inline: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .theme-option { transition: none; }
+}
