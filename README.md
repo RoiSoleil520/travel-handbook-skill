@@ -1,0 +1,66 @@
+# Travel Handbook · 旅行手册 Skill
+
+提供目的地、出发日期、同行人和每日大致安排，即可生成同款深绿色旅行手册网页。内置模板保留封面、日期导航、行程时间线、景点详情、地图入口、地点复制、出发待办，以及手机和桌面布局。
+
+**[打开示例网页](https://roisoleil520.github.io/travel-handbook-skill/)** · **[Skill 使用说明](travel-handbook/README.md)** · **[数据格式](travel-handbook/references/data-format.md)**
+
+示例为“江南两日慢游”，使用虚构安排、示例酒店与示意图片，不包含原作者的私人攻略或账号配置。待办和偏好保存在当前浏览器，不需要服务器或登录。
+
+## 安装与分享
+
+下载本仓库的 ZIP 并解压，将完整的 `travel-handbook/` 文件夹复制到应用支持的技能目录。以 Codex 为例：
+
+- 个人安装：`~/.codex/skills/travel-handbook`
+- 项目安装：`.agents/skills/travel-handbook`
+
+请保留模板、脚本、示例、数据格式与检查文件的相对位置，不要只分享 `SKILL.md`。也可以把完整文件夹直接分享给其他人。
+
+安装后向 AI 提供：
+
+```text
+使用 travel-handbook，把下面的攻略做成旅行手册网页，保留内置模板风格和交互。
+
+杭州 3 日游，2027 年 5 月 1 日出发，两人同行。
+第一天：下午到杭州，入住后逛西湖。
+第二天：上午灵隐寺，下午龙井村，晚上吃杭帮菜。
+第三天：上午逛河坊街，下午返程。
+酒店和门票还没订，具体时间待确认。没有图片，可以用示意图。
+```
+
+AI 会整理为行程数据并生成网页。未知时间、价格和订单信息保留为待确认。
+
+## 本地生成与预览
+
+需要 Node.js 18 或更新版本；不需要安装 npm 依赖。在仓库根目录执行：
+
+```sh
+node travel-handbook/scripts/build.mjs --input travel-handbook/examples/trip.json --output ../travel-handbook-demo
+python3 -m http.server 8000 --bind 127.0.0.1 --directory ../travel-handbook-demo
+```
+
+输出目录必须不存在或为空。第二条命令需要 Python 3；启动后打开 <http://127.0.0.1:8000>。自己的攻略可参考 `travel-handbook/examples/minimal.json`，将 `--input` 换成对应文件。自带图片的用法见 [Skill 使用说明](travel-handbook/README.md)。
+
+自检命令：
+
+```sh
+node travel-handbook/tests/check.mjs
+```
+
+## 更新 GitHub Pages 示例
+
+GitHub Pages 使用 **Deploy from a branch → master → /docs**。`docs/` 是由内置完整示例生成的静态网页，`.nojekyll` 用于直接发布静态文件。
+
+修改模板或示例数据后，在仓库根目录重新生成到临时目录；构建成功后再替换 `docs/`：
+
+```sh
+demo_dir="$(mktemp -d)"
+if node travel-handbook/scripts/build.mjs --input travel-handbook/examples/trip.json --output "$demo_dir"; then
+  rm -rf docs
+  mv "$demo_dir" docs
+  touch docs/.nojekyll
+fi
+```
+
+检查网页后，把模板、示例数据和 `docs/` 的变更一起提交到 `master`，GitHub Pages 会自动更新。只使用 `master` 分支。
+
+所有静态文件均可被访客读取，分享前移除个人资料与实际订单信息。离线功能需首次联网加载，并通过 HTTPS 或本地服务使用；地图仍需联网。

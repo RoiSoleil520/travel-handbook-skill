@@ -1,0 +1,16 @@
+{
+  "title": "杭州一日慢游",
+  "startDate": "2027-04-03",
+  "timezone": "Asia/Shanghai",
+  "travelers": "两人同行",
+  "days": [
+    {
+      "city": "杭州",
+      "title": "湖边散步，留一点自由时间",
+      "events": [
+        {"title": "湖畔散步", "label": "上午 · 时间待定", "detail": "按天气与体力调整。"},
+        {"title": "午餐与返程", "label": "时间待定", "detail": "餐厅与车次待确认。"}
+      ]
+    }
+  ]
+}
