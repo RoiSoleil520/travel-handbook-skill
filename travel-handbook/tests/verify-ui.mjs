@@ -71,11 +71,11 @@ async function fitsViewport(page, selector) {
   assert.ok(box && box.x >= 0 && box.y >= 0 && box.x + box.width <= width + 1 && box.y + box.height <= height + 1, `${selector} fits ${width}×${height}: ${JSON.stringify(box)}`);
 }
 
-async function readableSurface(page, selector, requireDark = true) {
-  const {background, color} = await page.locator(selector).evaluate(node => {
-    const style = getComputedStyle(node);
-    return {background: style.backgroundColor, color: style.color};
-  });
+async function readableSurface(page, selector, requireDark = true, surfaceSelector = selector) {
+  const {background, color} = await page.locator(selector).evaluate((node, surface) => ({
+    background: getComputedStyle(document.querySelector(surface)).backgroundColor,
+    color: getComputedStyle(node).color
+  }), surfaceSelector);
   const channels = value => value.match(/[\d.]+/g).slice(0, 3).map(Number);
   const luminance = value => channels(value).map(channel => channel / 255).map(channel => channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4).reduce((sum, channel, index) => sum + channel * [.2126, .7152, .0722][index], 0);
   if (requireDark) assert.ok(Math.max(...channels(background)) < 128, `${selector} has a dark surface: ${background}`);
@@ -489,8 +489,14 @@ try {
     assert.match(await card('flight').locator('.flight-countdown').innerText(), /距计划起飞/);
     const countdown = card('flight').locator('[data-countdown-at]');
     const initialCountdown = await countdown.innerText();
+    const trainCountdown = card('train').locator('.transport-countdown');
+    const trainClock = trainCountdown.locator('[data-countdown-at]');
+    assert.match(await trainCountdown.innerText(), /距计划发车/);
+    assert.doesNotMatch(await trainCountdown.innerText(), /起飞/);
+    const initialTrainCountdown = await trainClock.innerText();
     await page.clock.fastForward(1000);
     assert.notEqual(await countdown.innerText(), initialCountdown, 'The flight countdown still ticks');
+    assert.notEqual(await trainClock.innerText(), initialTrainCountdown, 'The train countdown ticks each second');
 
     for (const {kind, event} of transport) {
       const ownRole = event.roles.find(id => id !== allRole);
@@ -511,20 +517,34 @@ try {
           return text.getClientRects().length === 1 && node.scrollWidth <= node.clientWidth + 1;
         }));
         assert.ok(timesFit, `Train times remain on one line at ${width}px`);
+        const cardStyle = locator => locator.evaluate(node => {
+          const style = getComputedStyle(node);
+          return {background: style.backgroundColor, radius: style.borderRadius};
+        });
+        const flightStyle = await cardStyle(card('flight'));
         for (const {kind} of transport) {
           assert.equal(await card(kind).count(), 1);
           const selector = `.timeline .${kind}-card`;
-          await readableSurface(page, selector, kind === 'flight' || theme === 'dark');
+          await readableSurface(page, selector);
+          assert.deepEqual(await cardStyle(card(kind)), flightStyle, `${kind} uses the same dark card surface and corners as the flight`);
           const fits = await card(kind).evaluate(node => node.scrollWidth <= node.clientWidth + 1);
           assert.ok(fits, `${kind} contents fit ${width}px`);
           if (screenshotDir && width === 390) await card(kind).screenshot({path: join(screenshotDir, `transport-${kind}-${theme}-390.png`)});
-          if (kind !== 'flight') {
-            const surface = await page.locator('.timeline .event-card').first().evaluate(node => getComputedStyle(node).backgroundColor);
-            assert.equal(await card(kind).evaluate(node => getComputedStyle(node).backgroundColor), surface, `${kind} follows the theme surface`);
-          }
+        }
+        for (const [kind, text] of [['train', '.ground-note'], ['drive', '.ground-note'], ['drive', '.drive-pickup']]) {
+          const surface = `.timeline .${kind}-card`;
+          await readableSurface(page, `${surface} ${text}`, true, surface);
         }
         await screenshot(page, `transport-${theme}-${width}`);
       }
+    }
+    for (const [endpoint, status] of [[train.depart, '按计划已发车'], [train.arrival, '按计划已抵达']]) {
+      const instant = globalThis.TripTime.localInstant(endpoint.date, endpoint.time, endpoint.zone);
+      await page.clock.setSystemTime(new Date(instant));
+      await page.clock.fastForward(1000);
+      assert.equal(await trainClock.innerText(), status);
+      assert.equal(await trainCountdown.locator(':scope > span').innerText(), '计划状态 · 非实时');
+      assert.doesNotMatch(await trainCountdown.innerText(), /起飞/, 'Train status never uses flight terminology');
     }
     await page.reload(); await enter(page); await tab(page, 'timeline');
     for (const {kind} of transport) assert.equal(await card(kind).count(), 1, 'The whole-group view survives reload');

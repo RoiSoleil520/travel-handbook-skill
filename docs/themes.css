@@ -117,7 +117,7 @@
   .todo-form-actions, .prep-countdown, .clock-button, .settings-label, .empty-todos) { border-color: var(--line); }
 :root[data-theme] :is(.alternate-time, .spot-link small, .nav-icon) { color: var(--accent); }
 :root[data-theme] :is(.brand-mark, .journey-icon, .daily-stay > span, .now-card,
-  .flight-card, .return-now, .save-feedback, .role-picker button[aria-pressed=true],
+  .transport-card, .return-now, .save-feedback, .role-picker button[aria-pressed=true],
   .plan-buttons button[aria-pressed=true]) { background: var(--strong); color: var(--on-strong); }
 :root[data-theme] :is(.brand-mark, .journey-icon, .daily-stay > span, .return-now span,
   .role-picker button[aria-pressed=true]) { color: var(--green); }
@@ -128,7 +128,8 @@
 }
 :root[data-theme] :is(.now-card .eyebrow, .next-line > span, .next-line > button,
   .flight-route a, .flight-number strong, .flight-number i, .flight-countdown strong) { color: var(--green); }
-:root[data-theme] :is(.now-card p, .now-tag, .flight-card-top, .flight-card-top strong,
+:root[data-theme] :is(.now-card p, .now-tag, .transport-card-top, .transport-card-top strong,
+  .transport-card p.ground-note, .transport-card p.drive-pickup,
   .flight-route span, .flight-route small, .flight-countdown span, .flight-countdown small) { color: var(--on-strong-muted); }
 :root[data-theme] :is(.now-card .focus-time, .next-line strong) { color: var(--on-strong); }
 :root[data-theme] :is(.now-card .next-line, .flight-countdown, .now-card .flight-card) {

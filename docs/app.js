@@ -339,9 +339,9 @@
     return `<section class="day-reminders" aria-label="需要留意"><h3>需要留意 <small>${items.length} 项</small></h3>${items.map(reminderButton).join('')}</section>`;
   }
 
-  function formatCountdown(target, arrival) {
+  function formatCountdown(target, arrival, kind = 'flight') {
     const remaining = target - now();
-    if (remaining <= 0) return now() < arrival ? '按计划已起飞' : '按计划已抵达';
+    if (remaining <= 0) return now() < arrival ? (kind === 'train' ? '按计划已发车' : '按计划已起飞') : '按计划已抵达';
     const totalSeconds = Math.floor(remaining / 1000);
     const days = Math.floor(totalSeconds / 86400);
     const hours = Math.floor(totalSeconds % 86400 / 3600);
@@ -351,17 +351,23 @@
     return days ? `${days}天 ${clock}` : clock;
   }
 
+  function transportCountdown(transport, kind) {
+    const departure = T.localInstant(transport.depart.date, transport.depart.time, transport.depart.zone);
+    const arrival = T.localInstant(transport.arrival.date, transport.arrival.time, transport.arrival.zone);
+    const label = kind === 'train' ? '距计划发车' : '距计划起飞';
+    const detail = [transport.status || '待确认', kind === 'train' && transport.paid, kind === 'train' ? '出发与抵达均为当地时间' : '起降均为当地时间'].filter(Boolean).join(' · ');
+    return `<div class="flight-countdown transport-countdown"><span data-countdown-label="${departure}" data-departure-label="${label}">${departure > now() ? label : '计划状态 · 非实时'}</span><strong data-countdown-at="${departure}" data-arrival-at="${arrival}" data-transport="${kind}">${formatCountdown(departure, arrival, kind)}</strong><small>${esc(detail)}</small></div>`;
+  }
+
   function flightCard(flight) {
-    const departure = T.localInstant(flight.depart.date, flight.depart.time, flight.depart.zone);
-    const arrival = T.localInstant(flight.arrival.date, flight.arrival.time, flight.arrival.zone);
-    return `<section class="flight-card"><div class="flight-card-top"><span>航班 · ${esc(flight.flightNo)}</span><strong>${esc(flight.airline)} · ${esc(flight.travelers)}</strong></div><div class="flight-route"><div><b>${esc(flight.depart.code)}</b><span>${esc(flight.depart.city)} ${esc(flight.depart.terminal)}</span><small>${shortDate(flight.depart.date)} · ${esc(flight.depart.time)} 出发</small><a href="${mapSearchURL(flight.depart.map, flight.depart.mapProvider)}" target="_blank" rel="noopener" aria-label="在${mapName(flight.depart.mapProvider)}查看机场">机场地图 ↗</a></div><div class="flight-number"><strong>${esc(flight.flightNo)}</strong><i>────→</i></div><div><b>${esc(flight.arrival.code)}</b><span>${esc(flight.arrival.city)} ${esc(flight.arrival.terminal)}</span><small>${shortDate(flight.arrival.date)} · ${esc(flight.arrival.time)} 抵达</small><a href="${mapSearchURL(flight.arrival.map, flight.arrival.mapProvider)}" target="_blank" rel="noopener" aria-label="在${mapName(flight.arrival.mapProvider)}查看机场">机场地图 ↗</a></div></div><div class="flight-countdown"><span data-flight-label="${departure}">${departure > now() ? '距计划起飞' : '计划状态 · 非实时'}</span><strong data-countdown-at="${departure}" data-arrival-at="${arrival}">${formatCountdown(departure, arrival)}</strong><small>${esc(flight.status || '待确认')} · 起降均为当地时间</small></div></section>`;
+    return `<section class="transport-card flight-card"><div class="transport-card-top"><span>航班 · ${esc(flight.flightNo)}</span><strong>${esc(flight.airline)} · ${esc(flight.travelers)}</strong></div><div class="flight-route"><div><b>${esc(flight.depart.code)}</b><span>${esc(flight.depart.city)} ${esc(flight.depart.terminal)}</span><small>${shortDate(flight.depart.date)} · ${esc(flight.depart.time)} 出发</small><a href="${mapSearchURL(flight.depart.map, flight.depart.mapProvider)}" target="_blank" rel="noopener" aria-label="在${mapName(flight.depart.mapProvider)}查看机场">机场地图 ↗</a></div><div class="flight-number"><strong>${esc(flight.flightNo)}</strong><i>────→</i></div><div><b>${esc(flight.arrival.code)}</b><span>${esc(flight.arrival.city)} ${esc(flight.arrival.terminal)}</span><small>${shortDate(flight.arrival.date)} · ${esc(flight.arrival.time)} 抵达</small><a href="${mapSearchURL(flight.arrival.map, flight.arrival.mapProvider)}" target="_blank" rel="noopener" aria-label="在${mapName(flight.arrival.mapProvider)}查看机场">机场地图 ↗</a></div></div>${transportCountdown(flight, 'flight')}</section>`;
   }
 
   function trainCard(train) {
     const hours = Math.floor(train.durationMinutes / 60), minutes = train.durationMinutes % 60;
     const duration = `${hours ? `${hours}小时` : ''}${minutes ? `${minutes}分` : ''}`;
     const stop = (point, label) => `<div class="train-stop"><span>${label}</span><strong>${esc(point.time)}</strong><b>${esc(point.station)}</b><small>${shortDate(point.date)}</small><a href="${mapSearchURL(point.map, point.mapProvider)}" target="_blank" rel="noopener" aria-label="在${mapName(point.mapProvider)}查看${esc(point.station)}">车站地图 ↗</a></div>`;
-    return `<section class="ground-card train-card" aria-label="高铁 ${esc(train.trainNo)}"><div class="ground-card-top"><b>高铁 · ${esc(train.trainNo)}</b><span>${esc(train.travelers)}</span></div><div class="train-route">${stop(train.depart, '出发')}<div class="train-duration"><span aria-hidden="true">⟶</span><small>${esc(duration)}</small></div>${stop(train.arrival, '抵达')}</div><div class="train-seating"><span>${esc(train.seatClass || '席别待确认')}</span><span>${train.carriage ? `<b>${esc(train.carriage)}</b> 车厢` : '车厢待确认'}</span></div>${train.seats.length ? `<ul class="train-seats" aria-label="乘客座位">${train.seats.map(item => `<li><span>${esc(item.name)}</span><strong>${esc(item.seat)}</strong></li>`).join('')}</ul>` : '<p class="ground-note">座位待确认</p>'}<div class="train-gate"><span>检票口</span><strong>${esc(train.gate || '待确认')}</strong></div><p class="ground-note">检票口以车站当日显示为准。${esc(train.note)}</p><small class="ground-status">${esc(train.status)} · ${esc(train.paid)}</small></section>`;
+    return `<section class="transport-card train-card" aria-label="高铁 ${esc(train.trainNo)}"><div class="transport-card-top"><span>高铁 · ${esc(train.trainNo)}</span><strong>${esc(train.travelers)}</strong></div><div class="train-route">${stop(train.depart, '出发')}<div class="train-duration"><span aria-hidden="true">⟶</span><small>${esc(duration)}</small></div>${stop(train.arrival, '抵达')}</div><div class="train-seating"><span>${esc(train.seatClass || '席别待确认')}</span><span>${train.carriage ? `<b>${esc(train.carriage)}</b> 车厢` : '车厢待确认'}</span></div>${train.seats.length ? `<ul class="train-seats" aria-label="乘客座位">${train.seats.map(item => `<li><span>${esc(item.name)}</span><strong>${esc(item.seat)}</strong></li>`).join('')}</ul>` : '<p class="ground-note">座位待确认</p>'}<div class="train-gate"><span>检票口</span><strong>${esc(train.gate || '待确认')}</strong></div><p class="ground-note">检票口以车站当日显示为准。${esc(train.note)}</p>${transportCountdown(train, 'train')}</section>`;
   }
 
   function drivingMapLinks(route) {
@@ -373,7 +379,7 @@
   function driveCard(drive, event) {
     const timing = [drive.pickupTime && `${drive.pickupTime} 取车`, event.start && `${event.start} 出发`].filter(Boolean).join(' · ') || '出发时间待定';
     const status = [drive.status, drive.paid].filter(Boolean).join(' · ');
-    return `<section class="ground-card drive-card" aria-label="自驾安排"><div class="ground-card-top"><b>自驾${drive.vehicle ? ` · ${esc(drive.vehicle)}` : ''}</b><span>${esc(drive.travelers)}</span></div><div class="drive-route"><strong>${esc(drive.origin)}</strong><span aria-hidden="true">→</span><strong>${esc(drive.destination)}</strong></div>${drive.note ? `<p class="ground-note">${esc(drive.note)}</p>` : ''}<div class="drive-timing"><strong>${esc(timing)}</strong><span>${esc(drive.duration || '预计车程待确认')}</span></div>${drive.pickupPoint ? `<p class="drive-pickup">取车 · ${esc(drive.pickupPoint)}</p>` : ''}${status ? `<small class="ground-status">${esc(status)}</small>` : ''}<div class="location-actions">${drivingMapLinks(drive)}${copyLocationButton(drive.destination, '复制终点')}</div></section>`;
+    return `<section class="transport-card drive-card" aria-label="自驾安排"><div class="transport-card-top"><span>自驾${drive.vehicle ? ` · ${esc(drive.vehicle)}` : ''}</span><strong>${esc(drive.travelers)}</strong></div><div class="drive-route"><strong>${esc(drive.origin)}</strong><span aria-hidden="true">→</span><strong>${esc(drive.destination)}</strong></div>${drive.note ? `<p class="ground-note">${esc(drive.note)}</p>` : ''}<div class="drive-timing"><strong>${esc(timing)}</strong><span>${esc(drive.duration || '预计车程待确认')}</span></div>${drive.pickupPoint ? `<p class="drive-pickup">取车 · ${esc(drive.pickupPoint)}</p>` : ''}${status ? `<small class="ground-status">${esc(status)}</small>` : ''}<div class="location-actions">${drivingMapLinks(drive)}${copyLocationButton(drive.destination, '复制终点')}</div></section>`;
   }
 
   function copyLocationButton(text, label = '复制地点') {
@@ -421,9 +427,9 @@
     return `<section class="ticket-disclosure ${status === 'todo' || status === 'onsite' ? 'needs-ticket' : ''}" data-ticket-card="${esc(ticket.id)}"><div class="ticket-heading"><span>${esc(ticket.name)}</span><strong>${statusText}</strong></div><div class="ticket-body"><p class="ticket-price">${esc(ticket.price)}</p><p>${esc(ticket.reminder)}</p>${ticketSelect(ticket)}<small>参考价格 · 最终以商家确认为准</small></div></section>`;
   }
 
-  function updateFlightCountdowns() {
-    for (const node of document.querySelectorAll('[data-countdown-at]')) node.textContent = formatCountdown(Number(node.dataset.countdownAt), Number(node.dataset.arrivalAt));
-    for (const node of document.querySelectorAll('[data-flight-label]')) node.textContent = Number(node.dataset.flightLabel) > now() ? '距计划起飞' : '计划状态 · 非实时';
+  function updateTransportCountdowns() {
+    for (const node of document.querySelectorAll('[data-countdown-at]')) node.textContent = formatCountdown(Number(node.dataset.countdownAt), Number(node.dataset.arrivalAt), node.dataset.transport);
+    for (const node of document.querySelectorAll('[data-countdown-label]')) node.textContent = Number(node.dataset.countdownLabel) > now() ? node.dataset.departureLabel : '计划状态 · 非实时';
   }
 
   function spotLinks(eventId) {
@@ -1039,7 +1045,7 @@
     else if (tab === 'timeline') $('#now-container').innerHTML = nowCard();
   }
   setInterval(tick, 30000);
-  setInterval(() => { updateFlightCountdowns(); updateCover(); }, 1000);
+  setInterval(() => { updateTransportCountdowns(); updateCover(); }, 1000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
   render();
   requestAnimationFrame(scrollDate);

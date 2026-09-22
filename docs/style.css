@@ -22,7 +22,7 @@
 @media(max-width:720px){.focus-summary-heading{display:block}.focus-summary-heading .eyebrow{margin-bottom:5px}.focus-grid{grid-template-columns:1fr}.focus-item{grid-template-columns:82px minmax(0,1fr);gap:11px;padding:14px 13px}.focus-item strong{font-size:16px}.focus-item p{font-size:14px}.source-only{padding:13px 14px}}
 
 /* Flight, stay, transfer and ticket cards */
-.flight-card{background:var(--ink);color:#fff;border-radius:15px;padding:20px;margin:16px 0 4px}.flight-card-top{display:flex;justify-content:space-between;gap:12px;align-items:center;color:#b9d0da;font-size:12px;letter-spacing:.08em}.flight-card-top strong{font-weight:500;letter-spacing:0;color:#d2dfe4}.flight-route{display:grid;grid-template-columns:1fr 120px 1fr;align-items:center;margin:20px 0 18px}.flight-route>div:last-child{text-align:right}.flight-route b{display:block;font:650 43px/1 ui-monospace,SFMono-Regular,monospace}.flight-route span{display:block;color:#c5d6dd;margin-top:6px}.flight-route small{display:block;color:#b1c5ce;margin-top:16px}.flight-route a{display:inline-block;color:var(--green);font-size:12px;margin-top:7px}.flight-number{text-align:center!important}.flight-number strong{display:block;color:#b7e8e6}.flight-number i{display:block;color:#8ddbd5;font-style:normal;margin-top:5px}.flight-countdown{border-top:1px solid #48616d;padding-top:16px;display:grid;grid-template-columns:1fr auto;align-items:end;gap:2px 15px}.flight-countdown span{color:#b5c8d0;font-size:13px}.flight-countdown strong{font:600 28px ui-monospace,SFMono-Regular,monospace;color:#fff}.flight-countdown small{grid-column:2;color:#aec2ca;text-align:right}.hotel-card,.transfer-card{display:grid;grid-template-columns:40px 1fr;gap:13px;background:#f0f7f6;border:1px solid #cce0dd;border-radius:13px;padding:15px;margin:15px 0 4px}.transfer-card{background:#f2f6f8;border-color:#d8e3e7}.pending-transfer{background:#fff7e8;border-color:#e9cc93}.journey-icon{width:36px;height:36px;border-radius:50%;display:grid;place-content:center;background:var(--ink);color:var(--green);font-size:20px}.hotel-card .eyebrow,.transfer-card .eyebrow{color:var(--accent);margin:0 0 4px}.hotel-card h4,.transfer-card h4,.ticket-card h4{font-size:16px;margin:0 0 5px}.hotel-card p,.transfer-card p{font-size:14px!important;margin:0 0 4px}.hotel-card small,.transfer-card small{display:block;color:var(--muted);line-height:1.6}.hotel-card a,.transfer-card a{display:inline-block;font-size:13px;margin-top:8px}.ticket-card{display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:16px;align-items:start;background:#fff8e9;border:1px solid #e9cb91;border-radius:13px;padding:15px;margin:15px 0 4px}.ticket-card .eyebrow{color:#9c5a0c;margin:0 0 4px}.ticket-card h4{margin-bottom:4px}.ticket-card p{font-size:14px!important;color:#6e5a3d;margin:6px 0 0}.ticket-price{color:#8b4f0a;font-size:14px}.ticket-status span{display:block;color:#7a684d;font-size:12px;margin-bottom:5px}.ticket-status select{margin:0;padding:9px 10px;font-size:14px;border-color:#d7b875;background:#fff}.ticket-card>small{grid-column:1/-1;color:#876f50}.spot-ticket-section>.ticket-card{margin:0}
+.transport-card{background:var(--ink);color:#fff;border-radius:15px;padding:20px;margin:16px 0 4px}.transport-card-top{display:flex;justify-content:space-between;gap:12px;align-items:center;color:#b9d0da;font-size:12px;letter-spacing:.08em}.transport-card-top strong{font-weight:500;letter-spacing:0;color:#d2dfe4}.flight-route{display:grid;grid-template-columns:1fr 120px 1fr;align-items:center;margin:20px 0 18px}.flight-route>div:last-child{text-align:right}.flight-route b{display:block;font:650 43px/1 ui-monospace,SFMono-Regular,monospace}.flight-route span{display:block;color:#c5d6dd;margin-top:6px}.flight-route small{display:block;color:#b1c5ce;margin-top:16px}.flight-route a{display:inline-block;color:var(--green);font-size:12px;margin-top:7px}.flight-number{text-align:center!important}.flight-number strong{display:block;color:#b7e8e6}.flight-number i{display:block;color:#8ddbd5;font-style:normal;margin-top:5px}.flight-countdown{border-top:1px solid #48616d;padding-top:16px;display:grid;grid-template-columns:1fr auto;align-items:end;gap:2px 15px}.flight-countdown span{color:#b5c8d0;font-size:13px}.flight-countdown strong{font:600 28px ui-monospace,SFMono-Regular,monospace;color:#fff}.flight-countdown small{grid-column:2;color:#aec2ca;text-align:right}.hotel-card,.transfer-card{display:grid;grid-template-columns:40px 1fr;gap:13px;background:#f0f7f6;border:1px solid #cce0dd;border-radius:13px;padding:15px;margin:15px 0 4px}.transfer-card{background:#f2f6f8;border-color:#d8e3e7}.pending-transfer{background:#fff7e8;border-color:#e9cc93}.journey-icon{width:36px;height:36px;border-radius:50%;display:grid;place-content:center;background:var(--ink);color:var(--green);font-size:20px}.hotel-card .eyebrow,.transfer-card .eyebrow{color:var(--accent);margin:0 0 4px}.hotel-card h4,.transfer-card h4,.ticket-card h4{font-size:16px;margin:0 0 5px}.hotel-card p,.transfer-card p{font-size:14px!important;margin:0 0 4px}.hotel-card small,.transfer-card small{display:block;color:var(--muted);line-height:1.6}.hotel-card a,.transfer-card a{display:inline-block;font-size:13px;margin-top:8px}.ticket-card{display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:16px;align-items:start;background:#fff8e9;border:1px solid #e9cb91;border-radius:13px;padding:15px;margin:15px 0 4px}.ticket-card .eyebrow{color:#9c5a0c;margin:0 0 4px}.ticket-card h4{margin-bottom:4px}.ticket-card p{font-size:14px!important;color:#6e5a3d;margin:6px 0 0}.ticket-price{color:#8b4f0a;font-size:14px}.ticket-status span{display:block;color:#7a684d;font-size:12px;margin-bottom:5px}.ticket-status select{margin:0;padding:9px 10px;font-size:14px;border-color:#d7b875;background:#fff}.ticket-card>small{grid-column:1/-1;color:#876f50}.spot-ticket-section>.ticket-card{margin:0}
 
 /* User-created pre-trip tasks */
 .custom-todos{margin:30px 0 24px;padding-top:4px}.custom-todos form{display:grid;grid-template-columns:minmax(0,1fr) 180px auto;gap:10px;align-items:end;background:#eaf1f3;border-radius:14px;padding:16px;margin-bottom:12px}.custom-todos form label span{display:block;font-size:13px;font-weight:650;margin-bottom:6px}.custom-todos form input{margin:0}.custom-todos form button{min-height:46px}.custom-todo-list{display:grid;gap:8px}.custom-todo{background:#fff;border:1px solid var(--line);border-radius:11px;padding:13px 15px}.custom-todo input{width:20px;height:20px;margin:0;accent-color:var(--accent)}.custom-todo label{cursor:pointer}.custom-todo label strong{display:block}.custom-todo label small{display:block;color:var(--muted);margin-top:3px}.custom-todo button{background:transparent;color:#a14a3b;font-size:13px;padding:8px}.custom-todo.done label{text-decoration:line-through;color:var(--muted)}.empty-todos{color:var(--muted);font-size:14px;border:1px dashed #cbd8dd;border-radius:11px;padding:18px;margin:0;text-align:center}
@@ -36,7 +36,7 @@
 /* Traveler role switch: personal outbound steps, shared itinerary after meeting. */
 .role-picker{display:grid;grid-template-columns:auto auto;gap:3px 9px;align-items:center}.role-picker>span{font-size:12px;color:var(--muted);font-weight:650}.role-picker>div{display:flex;background:#e5ecef;border-radius:10px;padding:3px}.role-picker button{min-width:58px;padding:8px 12px;border-radius:8px;background:transparent;color:var(--muted);font-size:14px;font-weight:650}.role-picker button[aria-pressed=true]{background:var(--ink);color:var(--green);box-shadow:0 2px 7px #102d3d22}.role-picker small{grid-column:1/-1;color:var(--muted);text-align:right;font-size:11px}
 
-@media(max-width:720px){.flight-card{margin-left:-6px;margin-right:-6px;padding:17px 14px}.flight-route{grid-template-columns:1fr 78px 1fr}.flight-route b{font-size:34px}.flight-route span{font-size:13px}.flight-route small{font-size:11px;line-height:1.5;margin-top:12px}.flight-number strong{font-size:13px}.flight-countdown strong{font-size:23px}.flight-card-top strong{max-width:48%;text-align:right}.hotel-card,.transfer-card{grid-template-columns:34px 1fr;padding:13px 12px}.journey-icon{width:31px;height:31px;font-size:17px}.ticket-card{grid-template-columns:1fr}.ticket-card>small{grid-column:auto}.ticket-status{max-width:210px}.custom-todos form{grid-template-columns:1fr}.custom-todos form button{width:100%}.custom-todo{padding:12px}.spot-ticket-section{padding-top:18px!important}.daily-stay{grid-template-columns:auto minmax(0,1fr);grid-template-areas:"tag name" "tag meta" "map map"}.daily-stay>b{margin-top:5px}}
+@media(max-width:720px){.transport-card{margin-left:-6px;margin-right:-6px;padding:17px 14px}.flight-route{grid-template-columns:1fr 78px 1fr}.flight-route b{font-size:34px}.flight-route span{font-size:13px}.flight-route small{font-size:11px;line-height:1.5;margin-top:12px}.flight-number strong{font-size:13px}.flight-countdown strong{font-size:23px}.transport-card-top strong{max-width:48%;text-align:right}.hotel-card,.transfer-card{grid-template-columns:34px 1fr;padding:13px 12px}.journey-icon{width:31px;height:31px;font-size:17px}.ticket-card{grid-template-columns:1fr}.ticket-card>small{grid-column:auto}.ticket-status{max-width:210px}.custom-todos form{grid-template-columns:1fr}.custom-todos form button{width:100%}.custom-todo{padding:12px}.spot-ticket-section{padding-top:18px!important}.daily-stay{grid-template-columns:auto minmax(0,1fr);grid-template-areas:"tag name" "tag meta" "map map"}.daily-stay>b{margin-top:5px}}
 
 @media(max-width:720px){.site-header{flex-wrap:wrap}.role-picker{order:3;width:100%;grid-template-columns:auto 1fr auto;background:#fff;border:1px solid var(--line);border-radius:12px;padding:7px 9px;margin-top:2px}.role-picker>div{justify-self:start}.role-picker small{grid-column:auto;text-align:right}.role-picker button{min-width:64px;padding:8px 13px}}
 
@@ -67,8 +67,8 @@
 .now-card .next-line{display:grid;grid-template-columns:1fr auto;gap:5px 14px}
 .next-line>span{grid-column:1/-1}
 .next-line>button{background:none;color:var(--green);font-size:14px;min-height:40px;align-self:center}
-.now-card .flight-card{padding:0;margin:18px 0 0;border-top:1px solid #47606b;padding-top:16px}
-.now-card .flight-card-top{display:none}
+.now-card .transport-card{padding:0;margin:18px 0 0;border-top:1px solid #47606b;padding-top:16px}
+.now-card .transport-card-top{display:none}
 .browse-notice{display:flex;justify-content:space-between;gap:12px;padding:15px 16px;background:#e9f2f2;border-radius:12px;margin-bottom:18px;font-size:14px;line-height:1.6}
 .browse-notice button{background:none;color:var(--accent);font-size:14px;white-space:nowrap}
 .day-reminders{border:1px solid #ead6b3;background:#fff9ed;border-radius:14px;padding:17px 18px;margin-bottom:18px}
@@ -191,7 +191,7 @@ footer{max-width:1056px;padding-bottom:55px}
 .now-card{background:var(--ink);border-radius:18px;padding:23px 24px;box-shadow:0 10px 28px #173c3615}.now-card .eyebrow{color:#d0eab6}.now-tag{color:#c6d7cd}.now-card h2{font-size:23px}.now-card .focus-time{color:#eff5f0}
 .focus-actions a{background:#d0eab6}.focus-actions button{background:#2a574d}
 .now-card .next-line{border-color:#49695f}.next-line>span,.next-line>button{color:#d0eab6}
-.flight-card{background:var(--ink);border-radius:17px}.flight-card-top{color:#c6d9ce}.flight-card-top strong{color:#e2ebe5}
+.transport-card{background:var(--ink);border-radius:17px}.transport-card-top{color:#c6d9ce}.transport-card-top strong{color:#e2ebe5}
 .flight-route b{font-weight:500}.flight-route span,.flight-route small{color:#c6d7cd}.flight-route a{color:#d0eab6}.flight-number strong{color:#d0eab6}.flight-number i{color:#80aa98}.flight-countdown{border-color:#4c6b61}.flight-countdown span,.flight-countdown small{color:#bcd0c5}.flight-countdown strong{color:#d9ebb9}
 .day-reminders{background:#fff8eb;border-color:#ead6b3}.all-events,.day-notes{border-radius:15px}.all-events-body{background:var(--paper)}
 .event{grid-template-columns:78px minmax(0,1fr);gap:18px}.event::before{left:77px;background:#d7e1da}.event::after{left:73px;background:var(--paper);border-color:#819f8e}.event-time{font-size:16px;color:var(--accent)}
@@ -483,38 +483,37 @@ html,body{overscroll-behavior-x:none}
 }
 @media(max-width:360px){.cover-countdown>i{width:calc(.3em + 24px)}}
 
-/* Train seats and self-drive details share the light ticket surface. */
-.ground-card{margin:16px 0 4px;padding:20px;border:1px solid var(--line);border-radius:15px;background:var(--surface,#fff);color:var(--ink);overflow-wrap:anywhere}
-.ground-card-top{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px 16px;margin-bottom:20px;font-size:13px}
-.ground-card-top>span,.train-stop>span,.train-stop small,.train-duration,.train-seating,.train-gate>span,.ground-status{color:var(--muted)}
+/* Transport modes share the flight surface; retain their useful details. */
+.transport-card{overflow-wrap:anywhere;--transport-line:color-mix(in srgb,var(--strong) 65%,var(--on-strong-muted))}
+.train-stop>span,.train-stop small,.train-seating,.train-gate>span,.ground-status{color:var(--on-strong-muted)}
 .train-card{container-type:inline-size}
+.train-route,.drive-route{margin:20px 0 18px}
 .train-route{display:grid;grid-template-columns:minmax(0,1fr) minmax(60px,.7fr) minmax(0,1fr);gap:12px;align-items:start}
 .train-stop:last-child{text-align:right}
 .train-stop>span,.train-stop>strong,.train-stop>b,.train-stop>small{display:block}
-.train-stop>strong{font:700 clamp(16px,11cqi,34px)/1.2 ui-monospace,SFMono-Regular,monospace;white-space:nowrap;margin:7px 0 8px;color:var(--ink);letter-spacing:-.04em}
+.train-stop>strong{font:700 clamp(16px,11cqi,34px)/1.2 ui-monospace,SFMono-Regular,monospace;white-space:nowrap;margin:7px 0 8px;color:var(--on-strong);letter-spacing:-.04em}
 .train-stop>b{font-size:17px;line-height:1.5}
 .train-stop>small{font-size:12px;margin-top:6px}
-.train-stop>a{display:inline-block;font-size:12px;color:var(--accent);margin-top:7px}
-.train-duration{text-align:center;padding-top:29px}
+.train-stop>a{display:inline-block;font-size:12px;color:var(--green);margin-top:7px}
+.train-duration{color:var(--green);text-align:center;padding-top:29px}
 .train-duration>span{display:block;font-size:30px;line-height:1}
 .train-duration>small{display:block;font-size:13px;margin-top:5px;line-height:1.4}
 .train-seating{display:flex;flex-wrap:wrap;gap:12px 22px;margin:20px 0 15px;font-size:16px}
-.train-seating b,.train-seats,.train-gate>strong{color:var(--ink)}
-.train-seats{display:flex;flex-wrap:wrap;list-style:none;margin:0 0 18px;padding:7px;background:var(--surface-soft,#f5f7f7);border-radius:12px}
+.train-seating b,.train-seats,.train-gate>strong{color:var(--on-strong)}
+.train-seats{display:flex;flex-wrap:wrap;list-style:none;margin:0 0 18px;padding:7px;background:color-mix(in srgb,var(--strong) 85%,white);border-radius:12px}
 .train-seats>li{display:flex;align-items:baseline;justify-content:center;gap:8px;flex:1 1 110px;padding:8px;line-height:1.5;font-size:14px}
-.train-seats>li+li{border-left:1px solid var(--line)}
-.train-gate{display:flex;align-items:baseline;flex-wrap:wrap;gap:12px 22px;border-top:1px solid var(--line);padding-top:15px;font-size:17px}
-.ground-card .ground-note,.ground-card .drive-pickup{font-size:14px;line-height:1.7;color:var(--muted);margin:12px 0}
+.train-seats>li+li{border-left:1px solid var(--transport-line)}
+.train-gate{display:flex;align-items:baseline;flex-wrap:wrap;gap:12px 22px;border-top:1px solid var(--transport-line);padding-top:15px;font-size:17px}
+.transport-card .ground-note,.transport-card .drive-pickup{font-size:14px;line-height:1.7;color:var(--on-strong-muted);margin:12px 0}
 .ground-status{display:block;font-size:12px;line-height:1.6;margin-top:12px}
 .drive-route{display:grid;grid-template-columns:minmax(0,1fr) 36px minmax(0,1fr);align-items:start;gap:12px;font-size:22px;line-height:1.45}
-.drive-route>span{text-align:center;color:var(--muted);font-weight:400}
+.drive-route>span{text-align:center;color:var(--green);font-weight:400}
 .drive-route>strong:last-child{text-align:right}
-.drive-timing{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:17px 0;margin-top:18px;font-size:17px;line-height:1.5}
+.drive-timing{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;border-top:1px solid var(--transport-line);border-bottom:1px solid var(--transport-line);padding:17px 0;margin-top:18px;font-size:17px;line-height:1.5}
 .drive-timing>strong{font-weight:500}
 .drive-card .location-actions{margin-top:8px}
+.drive-card .location-actions :is(a,button){color:var(--green)}
 @media(max-width:720px){
-  .ground-card{padding:15px 12px}
-  .ground-card-top{font-size:12px;margin-bottom:16px}
   .train-route{gap:6px;grid-template-columns:minmax(0,1fr) 64px minmax(0,1fr)}
   .train-stop>b{font-size:14px}
   .train-stop>span{font-size:13px}
@@ -526,9 +525,8 @@ html,body{overscroll-behavior-x:none}
   .drive-timing{font-size:15px}
 }
 @media(max-width:360px){
-  .ground-card{padding:13px 10px}
   .train-route{grid-template-columns:minmax(0,1fr) 40px minmax(0,1fr);gap:3px}
   .train-stop>b{font-size:13px}
   .train-seats>li{flex-basis:100%;justify-content:flex-start}
-  .train-seats>li+li{border-left:0;border-top:1px solid var(--line)}
+  .train-seats>li+li{border-left:0;border-top:1px solid var(--transport-line)}
 }
