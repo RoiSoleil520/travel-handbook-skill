@@ -246,15 +246,26 @@
 }
 .theme-shortcut { width: 100%; text-align: left; }
 .theme-shortcut strong { margin-left: auto; color: var(--accent); font-size: 12px; font-weight: 600; }
+.floating-tools .menu-settings .role-shortcut {
+  min-height: 44px; padding: 9px 12px; gap: 10px;
+  border: 1px solid var(--line); border-radius: 10px;
+}
 .cover-theme-button {
   flex-shrink: 0; color: white; background: color-mix(in srgb, var(--cover-surface) 70%, transparent);
   border-color: #ffffff70; font-size: 12px; letter-spacing: .02em;
 }
 .theme-shortcut svg, .cover-theme-button svg { flex: none; }
-#theme-dialog { max-width: 620px; }
-#theme-dialog .dialog-title form { margin: 0; }
+#theme-dialog { max-width: 620px; max-height: calc(100dvh - 32px); overflow: hidden; }
+#theme-dialog[open] { display: flex; flex-direction: column; }
+html:has(#theme-dialog[open]) { overflow: hidden; }
+#theme-dialog .dialog-title, .theme-intro, .theme-dialog-footer { flex: none; }
+#theme-dialog form { margin: 0; }
 .theme-intro { font-size: 13px; line-height: 1.7; color: var(--muted); margin: 0 0 20px; }
+.theme-options { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 2px; margin: -2px; }
 .theme-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.theme-dialog-footer { padding-top: 20px; }
+#theme-feedback { margin: 0 0 14px; font-size: 12px; }
+.theme-dialog-footer button { width: 100%; min-height: 44px; border-radius: 10px; font-weight: 600; }
 .theme-option {
   position: relative; min-width: 0; min-height: 114px; padding: 13px;
   border: 1px solid var(--line); border-radius: 13px; background: var(--surface);
@@ -264,6 +275,7 @@
 .theme-option small { display: block; margin-top: 3px; font-size: 11px; line-height: 1.6; color: var(--muted); }
 .theme-option[aria-pressed=true] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); background: var(--surface-soft); }
 .theme-option[aria-pressed=true]::after { content: '✓'; position: absolute; right: 12px; top: 12px; color: var(--accent); font-weight: 700; }
+.theme-option:focus-visible { outline-offset: -4px; }
 .theme-swatches { display: flex; width: 76px; height: 23px; margin: 0 0 11px; border: 1px solid #00000012; border-radius: 7px; overflow: hidden; }
 .theme-swatches i { width: 33.333%; background: var(--swatch-paper); }
 .theme-swatches i:nth-child(2) { background: var(--swatch-accent); }
@@ -283,7 +295,7 @@
   :root[data-theme] .floating-tools .navigation-panel .tabs button { background: transparent; box-shadow: none; }
   :root[data-theme] .floating-tools .navigation-panel .tabs button[aria-selected=true] { background: var(--accent-soft); }
   :root[data-theme] .floating-actions { background: transparent; box-shadow: none; }
-  .menu-settings .theme-shortcut { padding-inline: 8px; }
+  .menu-settings .theme-shortcut, .floating-tools .menu-settings .role-shortcut { padding-inline: 8px; }
 }
 @media (hover: hover) {
   :root[data-theme] :is(.dates .date-button:hover, .overview-day-open:hover, .overview-stops button:hover,

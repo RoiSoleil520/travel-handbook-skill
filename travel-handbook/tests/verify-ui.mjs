@@ -48,8 +48,8 @@ async function noOverflow(page, name) {
   assert.ok(size.scroll <= size.width + 1, `${name}: ${size.width}px viewport overflows to ${size.scroll}px`);
 }
 
-async function screenshot(page, name) {
-  if (screenshotDir) await page.screenshot({path: join(screenshotDir, `${name}.png`), fullPage: true});
+async function screenshot(page, name, fullPage = true) {
+  if (screenshotDir) await page.screenshot({path: join(screenshotDir, `${name}.png`), fullPage});
 }
 
 async function themes(page) {
@@ -289,6 +289,41 @@ try {
     await page.reload();
     assert.equal(await page.locator('html').getAttribute('data-theme'), 'purple', 'Invalid saved theme falls back to the input default');
   }, false, true);
+
+  await scenario('theme dialog keeps its header and confirmation visible while options scroll', 'full', during, async page => {
+    for (const [width, height] of [[320, 568], [390, 667], [667, 390]]) {
+      await page.setViewportSize({width, height});
+      await toolsMenu(page);
+      const padding = selector => page.locator(selector).evaluate(node => [getComputedStyle(node).paddingLeft, getComputedStyle(node).paddingRight]);
+      assert.deepEqual(await padding('#role-menu-button'), await padding('.theme-shortcut'), `Role and theme shortcuts align at ${width}px`);
+      await page.locator('.theme-shortcut').click();
+      await chooseTheme(page, 'green');
+      const options = page.locator('.theme-options');
+      await options.evaluate(node => { node.scrollTop = 0; });
+      const fixedSelectors = ['#theme-dialog .dialog-title', '.theme-intro', '.theme-dialog-footer'];
+      const before = await Promise.all(fixedSelectors.map(selector => page.locator(selector).boundingBox()));
+      const scroll = await options.evaluate(node => {
+        node.scrollTop = node.scrollHeight;
+        return {top: node.scrollTop, height: node.clientHeight, content: node.scrollHeight};
+      });
+      assert.ok(scroll.top > 0 && scroll.content > scroll.height, `Options scroll at ${width}×${height}: ${JSON.stringify(scroll)}`);
+      for (const [index, selector] of fixedSelectors.entries()) {
+        await fitsViewport(page, selector);
+        assert.deepEqual(await page.locator(selector).boundingBox(), before[index], `${selector} stays fixed while scrolling`);
+      }
+      assert.equal(await page.locator('#theme-dialog').evaluate(node => node.scrollTop), 0, 'Only the options scroll');
+      await chooseTheme(page, 'dark');
+      await fitsViewport(page, '[data-theme-option="dark"]');
+      await fitsViewport(page, '.theme-dialog-footer button');
+      await noOverflow(page, `Theme dialog at ${width}×${height}`);
+      await screenshot(page, `theme-dialog-scroll-${width}x${height}`, false);
+      await page.getByRole('button', {name: '确定', exact: true}).click();
+      await page.locator('#theme-dialog').waitFor({state: 'hidden'});
+      await themes(page);
+      assert.equal(await page.locator('[data-theme-option="dark"]').getAttribute('aria-pressed'), 'true');
+      await page.getByRole('button', {name: '确定', exact: true}).click();
+    }
+  });
 
   await scenario('roles and per-day alternative plans persist independently', 'full', during, async page => {
     const [firstRole, secondRole] = model.trip.roles;

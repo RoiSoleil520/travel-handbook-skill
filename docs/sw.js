@@ -1,5 +1,5 @@
 const CACHE_PREFIX = `travel-handbook:${self.registration.scope}:`;
-const CACHE = CACHE_PREFIX + '685c8f6147df';
+const CACHE = CACHE_PREFIX + '0404912e8e97';
 const FILES = ["./","index.html","style.css","themes.css","time.js","themes.js","app.js","assets/cover.svg","assets/placeholder.svg","data.js","assets/route.svg"];
 self.addEventListener('install', event => event.waitUntil(
   caches.open(CACHE).then(cache => cache.addAll(FILES)).then(() => self.skipWaiting())

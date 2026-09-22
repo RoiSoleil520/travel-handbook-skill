@@ -72,8 +72,11 @@
   <dialog id="theme-dialog" aria-labelledby="theme-title">
     <div class="dialog-title"><h2 id="theme-title">旅行配色</h2><form method="dialog"><button class="icon-button" aria-label="关闭旅行配色">×</button></form></div>
     <p class="theme-intro">给旅程换一种心情。点选即刻生效。</p>
-    <div class="theme-grid" role="group" aria-label="选择旅行配色"></div>
-    <p id="theme-feedback" class="muted" role="status" aria-live="polite">选择会记在这台设备上。</p>
+    <div class="theme-options"><div class="theme-grid" role="group" aria-label="选择旅行配色"></div></div>
+    <div class="theme-dialog-footer">
+      <p id="theme-feedback" class="muted" role="status" aria-live="polite">选择会记在这台设备上。</p>
+      <form method="dialog"><button class="primary" type="submit">确定</button></form>
+    </div>
   </dialog>
   <dialog id="copy-location-dialog" aria-labelledby="copy-location-title">
     <div class="dialog-title"><h2 id="copy-location-title">复制地点</h2><form method="dialog"><button class="icon-button" aria-label="关闭复制地点">×</button></form></div>
