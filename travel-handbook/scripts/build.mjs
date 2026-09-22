@@ -95,7 +95,7 @@ export function normalize(input) {
   });
   const checklistIds = new Set(checklist.map(task => task.id));
   if (checklistIds.size !== checklist.length) throw new Error('待办 ID 重复');
-  const journey = {dailyStay: [], flights: Object.create(null), hotels: Object.create(null), transfers: Object.create(null), tickets: [], ticketsByEvent: Object.create(null), ticketsBySpot: Object.create(null)};
+  const journey = {dailyStay: [], flights: Object.create(null), trains: Object.create(null), drives: Object.create(null), hotels: Object.create(null), transfers: Object.create(null), tickets: [], ticketsByEvent: Object.create(null), ticketsBySpot: Object.create(null)};
   const spots = [], spotsByEvent = Object.create(null), eventIds = new Set();
   function events(items, day, prefix) {
     return list(items).map((source, index) => {
@@ -106,9 +106,10 @@ export function normalize(input) {
       const event = {id: eventId, title: text(source.title), detail: text(source.detail), zone: zone(text(source.zone, day.zone)), label: text(source.label, '时间待定')};
       event.mapProvider = mapProvider(source.mapProvider, source.zone ? event.zone : undefined, day.mapProvider);
       if (!event.title) throw new Error(`${eventId} 缺少 title`);
+      if (['flight', 'train', 'drive', 'transfer'].filter(key => source[key] !== undefined).length > 1) throw new Error(`${eventId} 只能提供一种交通方式：flight / train / drive / transfer`);
       if (source.time || source.start) { event.start = time(source.time || source.start); event.label = text(source.label, event.start); }
       if (source.end) {
-        if (!event.start) throw new Error(`${eventId} 有结束时间，缺少开始时间`);
+        if (!event.start && source.train === undefined) throw new Error(`${eventId} 有结束时间，缺少开始时间`);
         event.end = time(source.end);
       }
       if (source.endDate) event.endDate = date(source.endDate);
@@ -125,8 +126,10 @@ export function normalize(input) {
         if (!checklistIds.has(source.confirmedBy)) throw new Error(`${eventId} 的 confirmedBy 未匹配待办 ID`);
         event.confirmedBy = source.confirmedBy;
       }
-      const bounds = T.bounds(event, day.date);
-      if (bounds.end !== null && bounds.end <= bounds.start) throw new Error(`${eventId} 的结束时间必须晚于开始时间`);
+      if (source.train === undefined) {
+        const bounds = T.bounds(event, day.date);
+        if (bounds.end !== null && bounds.end <= bounds.start) throw new Error(`${eventId} 的结束时间必须晚于开始时间`);
+      }
       if (source.place) {
         const p = object(source.place);
         const spot = {id: `${eventId}-place`, day: day.day, city: day.city, eventIds: [eventId], name: text(p.name, event.title), mapQuery: text(p.query, `${text(p.name, event.title)}, ${day.city}`), summary: text(p.summary, event.detail), tips: list(p.tips).map(item => text(item)), image: picture(p.image, 'assets/placeholder.svg'), source: text(p.credit, p.image ? '用户提供图片' : '模板示意图，非实景')};
@@ -137,27 +140,49 @@ export function normalize(input) {
         });
         spots.push(spot); spotsByEvent[eventId] = [spot];
       }
-      if (source.flight) {
-        const flight = object(source.flight);
+      if (source.flight || source.train !== undefined) {
+        const isTrain = source.train !== undefined, transport = object(isTrain ? source.train : source.flight);
+        const transportName = isTrain ? '高铁' : '航班';
         const endpoint = (value, fallbackDate) => {
           object(value);
           const p = {date: date(text(value.date, fallbackDate)), time: time(text(value.time)), zone: zone(text(value.zone, day.zone))};
           p.mapProvider = mapProvider(value.mapProvider, value.zone ? p.zone : undefined, event.mapProvider);
-          for (const key of ['city', 'code', 'terminal', 'map']) p[key] = text(value[key]);
-          if (!p.city) throw new Error('航班起降地点需提供 city');
-          p.map ||= p.city;
+          for (const key of isTrain ? ['station', 'map'] : ['city', 'code', 'terminal', 'map']) p[key] = text(value[key]);
+          const location = isTrain ? 'station' : 'city';
+          if (!p[location]) throw new Error(`${transportName}起终点需提供 ${location}`);
+          p.map ||= p[location];
           T.localInstant(p.date, p.time, p.zone);
           return p;
         };
-        const f = {depart: endpoint(flight.depart, day.date), arrival: endpoint(flight.arrival, day.date)};
-        for (const key of ['airline', 'flightNo', 'paid']) f[key] = text(flight[key], '待确认');
-        f.travelers = text(flight.travelers, text(input.travelers, '同行旅人'));
-        f.status = text(flight.status, '待确认');
-        if (T.localInstant(f.arrival.date, f.arrival.time, f.arrival.zone) <= T.localInstant(f.depart.date, f.depart.time, f.depart.zone)) throw new Error(`${eventId} 航班抵达须晚于起飞（请核对时区与跨日日期）`);
-        if (f.depart.date !== day.date) throw new Error(`${eventId} 航班必须放在出发当地日期对应的一天`);
-        if (event.start && (event.start !== f.depart.time || event.zone !== f.depart.zone)) throw new Error(`${eventId} 事件与航班起飞时间或时区不一致`);
+        const f = {depart: endpoint(transport.depart, day.date), arrival: endpoint(transport.arrival, day.date)};
+        for (const key of isTrain ? ['trainNo', 'paid'] : ['airline', 'flightNo', 'paid']) f[key] = text(transport[key], '待确认');
+        f.travelers = text(transport.travelers, text(input.travelers, '同行旅人'));
+        f.status = text(transport.status, '待确认');
+        const durationMinutes = (T.localInstant(f.arrival.date, f.arrival.time, f.arrival.zone) - T.localInstant(f.depart.date, f.depart.time, f.depart.zone)) / 60000;
+        if (durationMinutes <= 0) throw new Error(`${eventId} ${transportName}抵达须晚于出发（请核对时区与跨日日期）`);
+        if (f.depart.date !== day.date) throw new Error(`${eventId} ${transportName}必须放在出发当地日期对应的一天`);
+        if (event.start && (event.start !== f.depart.time || event.zone !== f.depart.zone)) throw new Error(`${eventId} 事件与${transportName}出发时间或时区不一致`);
+        if (isTrain) {
+          if ((event.end && event.end !== f.arrival.time) || (event.endDate && event.endDate !== f.arrival.date) || (event.endZone && event.endZone !== f.arrival.zone)) throw new Error(`${eventId} 事件与高铁抵达时间、日期或时区不一致`);
+          for (const key of ['seatClass', 'carriage', 'gate', 'note']) f[key] = text(transport[key]);
+          f.seats = list(transport.seats).map(value => {
+            const item = object(value), seat = {name: text(item.name), seat: text(item.seat)};
+            if (!seat.name || !seat.seat) throw new Error(`${eventId} 座位需提供 name 和 seat`);
+            return seat;
+          });
+          f.durationMinutes = durationMinutes;
+        }
         Object.assign(event, {start: f.depart.time, end: f.arrival.time, zone: f.depart.zone, endDate: f.arrival.date, endZone: f.arrival.zone, label: `${f.depart.time} — ${f.arrival.time}`});
-        journey.flights[eventId] = f;
+        journey[isTrain ? 'trains' : 'flights'][eventId] = f;
+      }
+      if (source.drive !== undefined) {
+        const sourceDrive = object(source.drive), drive = {};
+        for (const key of ['origin', 'destination', 'travelers', 'pickupPoint', 'duration', 'vehicle', 'paid', 'status', 'note']) drive[key] = text(sourceDrive[key]);
+        if (!drive.origin || !drive.destination) throw new Error('自驾需提供 origin 和 destination');
+        drive.travelers ||= text(input.travelers, '同行旅人');
+        drive.pickupTime = sourceDrive.pickupTime === undefined ? '' : time(text(sourceDrive.pickupTime));
+        drive.mapProvider = mapProvider(sourceDrive.mapProvider, undefined, event.mapProvider);
+        journey.drives[eventId] = drive;
       }
       if (source.hotel) {
         const h = object(source.hotel), hotel = {};
@@ -210,9 +235,11 @@ export function normalize(input) {
   meta.mapProvider = defaultMapProvider;
   const sections = Object.fromEntries(['bookings', 'transport', 'packing', 'budget', 'overview', 'checklist'].map(key => [key, []]));
   const table = (title, headers, rows) => ({title, text: '', tables: [[headers, ...rows]], links: []});
-  if (Object.keys(journey.flights).length) sections.bookings.push(table('航班', ['航班', '出发', '抵达', '状态'], Object.values(journey.flights).map(f => [f.flightNo, `${f.depart.date} ${f.depart.time} ${f.depart.city}`, `${f.arrival.date} ${f.arrival.time} ${f.arrival.city}`, `${f.status} · ${f.paid}`])));
+  if (Object.keys(journey.flights).length) sections.bookings.push(table('航班', ['同行人', '航班', '出发', '抵达', '状态'], Object.values(journey.flights).map(f => [f.travelers, f.flightNo, `${f.depart.date} ${f.depart.time} ${f.depart.city}`, `${f.arrival.date} ${f.arrival.time} ${f.arrival.city}`, `${f.status} · ${f.paid}`])));
+  if (Object.keys(journey.trains).length) sections.bookings.push(table('高铁', ['同行人', '车次', '出发', '抵达', '座席', '检票口', '状态'], Object.values(journey.trains).map(t => [t.travelers, t.trainNo, `${t.depart.date} ${t.depart.time} ${t.depart.station}`, `${t.arrival.date} ${t.arrival.time} ${t.arrival.station}`, [t.seatClass, t.carriage && `${t.carriage} 车厢`, ...t.seats.map(s => `${s.name} ${s.seat}`)].filter(Boolean).join(' · ') || '待确认', t.gate || '待确认', `${t.status} · ${t.paid}`])));
   if (Object.keys(journey.hotels).length) sections.bookings.push(table('住宿', ['酒店', '酒店名称', '入住', '房间', '早餐', '状态'], Object.values(journey.hotels).map(h => [h.name, h.name, h.stay, h.rooms, h.breakfast, `${h.status} · ${h.paid}`])));
   if (Object.keys(journey.transfers).length) sections.transport.push(table('接送', ['路线', '时间', '车辆', '费用', '提醒'], Object.values(journey.transfers).map(t => [t.route, t.time, t.vehicle, t.price, t.note])));
+  if (Object.keys(journey.drives).length) sections.transport.push(table('自驾', ['同行人', '路线', '取车时间', '取车地点', '预计用时', '车辆', '费用', '状态', '提醒'], Object.values(journey.drives).map(d => [d.travelers, `${d.origin} → ${d.destination}`, d.pickupTime, d.pickupPoint, d.duration || '待确认', d.vehicle || '待确认', d.paid || '待确认', d.status || '待确认', d.note])));
   for (const key of ['packing', 'budget']) {
     const rows = list(input[key]).map(item => { object(item); return [text(item.title), text(key === 'budget' ? item.amount : item.detail), text(item.note)]; });
     if (rows.length) sections[key].push(table(key === 'budget' ? '费用参考' : '随身准备', ['项目', key === 'budget' ? '金额' : '说明', '备注'], rows));

@@ -13,7 +13,7 @@ JSON 是 skill 为用户整理的中间数据，用户只需提供自然语言�
 | `days` | 至少一天；每项包含 `city`、可选 `title` 和 `events` |
 | `days[].events` | 可为空；事件至少有 `title`；没有明确时间时只写 `label: "时间待定"` |
 
-`days[].date` 不填则从 startDate 顺延。显式日期必须连续且与所在日匹配，休息日保留 `events: []`。不支持重复日历日期或跨日期变更线造成的跳日，应先与用户核实并调整行程建模。每一天可设 `zone` 覆盖时区；“跟随行程”时钟按当天的 `zone` 显示，事件和航班可有各自时区。
+`days[].date` 不填则从 startDate 顺延。显式日期必须连续且与所在日匹配，休息日保留 `events: []`。不支持重复日历日期或跨日期变更线造成的跳日，应先与用户核实并调整行程建模。每一天可设 `zone` 覆盖时区；“跟随行程”时钟按当天的 `zone` 显示，事件、航班和铁路端点可有各自时区。
 
 ## 可选整程字段
 
@@ -51,6 +51,8 @@ JSON 是 skill 为用户整理的中间数据，用户只需提供自然语言�
 - pending/approx 只能是 true/false。confirmedBy 可关联“确认接送”待办，勾选后取消该事件的待确认提示。
 - 未提供 roles 的事件对所有角色可见；原计划与备选所有事件 ID 必须全局唯一。
 
+不同同行人的抵达方式分别建事件。例如顶层 `roles` 为 `all`（全体）、`air`（小禾·飞机）、`rail`（云舟与阿宁·高铁）、`drive`（林夕·自驾），飞机事件写 `roles: ["all", "air"]`，高铁事件写 `roles: ["all", "rail"]`。`all` 只是普通角色 ID，专属事件必须主动包含它才能在全体视图显示；共同行程省略 `roles` 即可。人名仅供展示，不是访问凭据，静态数据不会因身份筛选而隐藏或加密。
+
 事件可内嵌以下对象，构建器自动建立景点、订单和票务关联，不需要手写关联表：
 
 | 对象 | 字段 |
@@ -60,14 +62,26 @@ JSON 是 skill 为用户整理的中间数据，用户只需提供自然语言�
 | `hotel` | `name`、`map`、`stay`、`rooms`、`breakfast`、`paid`、`note`、`status`；缺省状态“待确认” |
 | `transfer` | `origin`、`destination` 必填（地图搜索词）；可选 `route`、`time`、`vehicle`、`price`、`note`；待确认使用事件 pending |
 | `flight` | `airline`、`flightNo`、`travelers`、`paid`、`status`（默认“待确认”）、`depart`、`arrival` |
+| `train` | `trainNo`、`travelers`、`seatClass`、`carriage`、`seats`（`[{"name":"云舟","seat":"08A"}]`）、`gate`、`paid`、`status`、`note`、`depart`、`arrival` |
+| `drive` | `origin`、`destination` 必填（地图搜索词）；可选 `travelers`、`pickupTime`（`HH:mm`）、`pickupPoint`、`duration`（估算文本）、`vehicle`、`paid`、`status`、`note`、`mapProvider` |
 
-flight 的 depart/arrival 都需有 `city`、`time`，另可填 `date`（默认事件当天）、`zone`（默认当天时区）、`code`、`terminal`、`map`。到达须晚于起飞；事件开始时间/时区如已填写，须与 depart 一致。航班自动使用真实起降当地时间构造时间线。航班号、时刻未知时用普通“航班待确认”事件，不伪造 flight 数据。夏令时不存在或重复的当地时间会拒绝构建，需明确无歧义时刻后再生成。“此刻”定位按当天时间线计算，前一天出发的跨夜航班保留在出发日，不会自动延续到次日卡片。
+同一个事件最多使用 `flight`、`train`、`drive`、`transfer` 中的一种；例如航班落地后接车应拆成两个事件。
+
+flight 的 depart/arrival 都需有 `city`、`time`，另可填 `date`（默认事件当天）、`zone`（默认当天时区）、`code`、`terminal`、`map`。train 的 depart/arrival 都需有 `station`、`time`，另可填 `date`、`zone`、`map`、`mapProvider`；其中 `station` 是展示的车站名，`map` 可补城市信息避免重名。
+
+飞机和铁路的到达须晚于出发；事件开始时间/时区如已填写，须与 depart 一致。模板按端点当地时间生成时间线，列车 `durationMinutes` 由构建器计算，不在输入中手写。跨日到达必须填写 `arrival.date`；跨时区各端点填自己的 `zone`，不能仅比较钟面时间。夏令时不存在或重复的当地时间会拒绝构建，需明确无歧义时刻后再生成。“此刻”定位按当天时间线计算，跨夜交通保留在出发日，不会自动延续到次日卡片。真实班次、时刻未知时用普通“航班待确认”或“车次待确认”事件，不伪造完整交通数据。
+
+列车席别、车厢、座位与检票口未知时可以省略，不因已有车次就默认填满。每个座位项只展示 `name` 和 `seat`，不收集证件号码；临时变更以车票及车站屏幕为准。
+
+drive 的 `event.time` 表示出发时间，`pickupTime` 表示取车时间，不可混用。只有估算 `duration: "约 20–30 分钟"` 时，不据此编造事件 `end`；有确认的到达时间才填写 `end`。自有车辆无需 `pickupTime` 或 `pickupPoint`，租车可以填这两个字段。`duration` 只是展示文本，不代表实时路况或导航结果。
+
+云南完整示例含小禾乘飞机、云舟与阿宁乘高铁、林夕取车自驾的虚构安排。示例班次、时刻、航站楼、座位和交通费用均不是实际订单；`status` 写“演示数据 · 未预订”，`paid` 明确为虚构费用且未支付。只有制作获准的演示时才使用假数据，生成真实攻略时以用户确认内容替换。三种交通是三组独立安排，不是同一订单的模式开关。天气备选可用普通事件引用原交通卡片：飞机/高铁在“交通住宿”，自驾/接送在“交通接送”，避免在订单汇总中重复创建同一行程。
 
 每个事件有自己的门票状态；同一张联票覆盖多个活动时，将票务只放在一个购票/使用事件，其他事件用 detail 说明共享联票，避免重复购票。
 
 ## 地图服务与搜索词
 
-按实际地点所属区域选择：中国内地用 `amap`，国外用 `google`。支持在整程顶层、`days[]`、事件，以及 `place`、`hotel`、`transfer`、`stay`、`flight.depart`、`flight.arrival` 中设置 `mapProvider`，不接受其他值。各级优先使用自身明确的 `mapProvider`；每天、事件或航班端点未设置地图服务但明确给出当地 `zone` 时，按该时区推断；否则继承上级（住宿继承当天，事件内地点与航班端点继承事件）。`place`、`hotel`、`transfer`、`stay` 不接受新增的 `zone` 配置，仅覆盖地图服务或继承上级。顶层按 `timezone` 推断。`Asia/Shanghai`、`Asia/Urumqi` 及其 IANA 别名使用高德，其他时区使用 Google；浏览器语言、设备时区和用户切换的显示时区不参与地图选择。
+按实际地点所属区域选择：中国内地用 `amap`，国外用 `google`。支持在整程顶层、`days[]`、事件，以及 `place`、`hotel`、`transfer`、`drive`、`stay`、`flight.depart`、`flight.arrival`、`train.depart`、`train.arrival` 中设置 `mapProvider`，不接受其他值。各级优先使用自身明确的 `mapProvider`；每天、事件或航班/铁路端点未设置地图服务但明确给出当地 `zone` 时，按该时区推断；否则继承上级（住宿继承当天，事件内地点与交通端点继承事件）。`place`、`hotel`、`transfer`、`drive`、`stay` 不接受新增的 `zone` 配置，仅覆盖地图服务或继承上级。顶层按 `timezone` 推断。`Asia/Shanghai`、`Asia/Urumqi` 及其 IANA 别名使用高德，其他时区使用 Google；浏览器语言、设备时区和用户切换的显示时区不参与地图选择。
 
 国内的 `query`、`map`、`origin`、`destination` 优先使用“中文正式名 + 城市”，如“杭州东站 杭州市”；国外使用“当地名/英文名 + 城市”。跨境航班起降端分别配置，不统一套用整程的国外地图，例如端点字段片段：
 
@@ -97,4 +111,4 @@ flight 的 depart/arrival 都需有 `city`、`time`，另可填 `date`（默认�
 {"sections":{"packing":[{"title":"出发前复核","text":"检查天气与交通通知。","tables":[[["事项","说明"],["行李","按实际票种额度核对"]]],"links":[{"text":"资料名称","url":"https://example.com/guide"}]}]}}
 ```
 
-只接受 HTTPS 参考链接。航班、酒店、接送、packing、budget 会自动生成资料卡；补充 sections 在其后显示，不覆盖自动生成内容。
+只接受 HTTPS 参考链接。飞机、高铁与酒店在“交通住宿”汇总，自驾和接送在“交通接送”汇总；packing、budget 也会自动生成资料卡；补充 sections 在其后显示，不覆盖自动生成内容。

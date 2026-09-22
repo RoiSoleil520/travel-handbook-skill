@@ -19,7 +19,8 @@ try {
   assert.equal(plain.journey.dailyStay[0].map, '');
   const data = normalize(sample);
   assert.equal(data.trip.days[1].date, '2027-04-04');
-  assert.equal(data.trip.roles.length, 2);
+  assert.equal(data.trip.roles.length, sample.roles.length);
+  assert.ok(data.trip.roles.length >= 2, 'Example needs multiple traveler roles');
   const ticketEvent = sample.days.flatMap(day => day.events).find(event => event.ticket);
   const hotelEvent = sample.days.flatMap(day => day.events).find(event => event.hotel);
   assert.ok(ticketEvent && hotelEvent, 'Example needs a ticket and hotel');
@@ -95,14 +96,80 @@ try {
   assert.equal(flight.journey.flights[flightEvent.id].depart.mapProvider, 'amap');
   assert.equal(flight.journey.flights[flightEvent.id].arrival.mapProvider, 'google', 'International flight endpoints choose maps independently');
   assert.equal(globalThis.TripTime.bounds(flightEvent, flight.trip.days[0].date).end - globalThis.TripTime.bounds(flightEvent, flight.trip.days[0].date).start, 10800000);
+  assert.equal(flight.trip.sections.bookings[0].tables[0][0][0], '同行人');
+
+  const transportInput = {...minimal, days: [{city: '大理', events: [
+    {id: 'check-train', title: '高铁示例', train: {trainNo: 'D0000（示例）', travelers: '旅人甲', seatClass: '二等座', carriage: '07', seats: [{name: '旅人甲', seat: '08A'}], gate: 'A10、A11', depart: {station: '示例出发站', time: '23:50'}, arrival: {station: '示例抵达站', date: '2027-04-04', time: '02:20'}}},
+    {id: 'check-drive', title: '自驾示例', time: '09:00', drive: {origin: '大理凤仪机场', destination: '大理古城', pickupTime: '08:30', pickupPoint: '机场服务点', duration: '约 20–30 分钟'}}
+  ]}]};
+  const transportData = normalize(transportInput), train = transportData.journey.trains['check-train'], drive = transportData.journey.drives['check-drive'];
+  assert.equal(train.durationMinutes, 150, 'Cross-day train duration must use endpoint dates');
+  assert.deepEqual(train.seats, [{name: '旅人甲', seat: '08A'}]);
+  assert.equal(train.depart.map, train.depart.station);
+  assert.equal(train.arrival.mapProvider, 'amap');
+  assert.equal(train.status, '待确认');
+  assert.equal(transportData.trip.days[0].events[0].endDate, '2027-04-04');
+  assert.equal(transportData.trip.days[0].events[0].start, '23:50');
+  assert.equal(transportData.trip.days[0].events[1].end, undefined, 'Estimated drive duration must not invent an arrival time');
+  assert.equal(drive.mapProvider, 'amap');
+  assert.equal(drive.vehicle, '', 'Missing drive details must not be invented');
+  assert.equal(transportData.trip.sections.bookings[0].tables[0][1][4], '二等座 · 07 车厢 · 旅人甲 08A');
+  assert.equal(transportData.trip.sections.transport[0].title, '自驾');
+  const ownCar = structuredClone(transportInput);
+  delete ownCar.days[0].events[1].drive.pickupTime;
+  delete ownCar.days[0].events[1].drive.pickupPoint;
+  assert.deepEqual(normalize(ownCar).trip.sections.transport[0].tables[0][1].slice(2, 4), ['', ''], 'Own-car trips must not invent rental pickup requirements');
+  const daylongTrain = structuredClone(transportInput);
+  daylongTrain.days[0].events[0].time = '23:50';
+  daylongTrain.days[0].events[0].end = '23:50';
+  daylongTrain.days[0].events[0].train.arrival.time = '23:50';
+  assert.equal(normalize(daylongTrain).journey.trains['check-train'].durationMinutes, 1440, 'Train endpoint dates must resolve equal clock times on different days');
+  const rejectTransport = (change, message) => {
+    const input = structuredClone(transportInput); change(input.days[0].events); assert.throws(() => normalize(input), message);
+  };
+  rejectTransport(events => events[0].time = '23:49', /不一致/);
+  rejectTransport(events => events[0].end = '02:21', /不一致/);
+  rejectTransport(events => events[0].endDate = '2027-04-05', /不一致/);
+  rejectTransport(events => events[0].endZone = 'Asia/Tokyo', /不一致/);
+  rejectTransport(events => events[0].train.depart.date = '2027-04-02', /对应的一天/);
+  rejectTransport(events => events[0].train.arrival.date = '2027-04-03', /晚于出发/);
+  rejectTransport(events => events[0].train.depart.station = '', /station/);
+  rejectTransport(events => events[0].train.depart.mapProvider = 'invalid', /mapProvider/);
+  rejectTransport(events => events[0].train.seats[0].seat = '', /name 和 seat/);
+  rejectTransport(events => events[0].train.seats[0].name = [], /字符串/);
+  rejectTransport(events => events[0].train.seats = {}, /数组/);
+  rejectTransport(events => events[0].train.gate = 10, /字符串/);
+  rejectTransport(events => events[0].train = null, /对象/);
+  rejectTransport(events => events[1].drive = null, /对象/);
+  rejectTransport(events => events[1].drive.origin = '', /origin 和 destination/);
+  rejectTransport(events => events[1].drive.pickupTime = '9:00', /HH:mm/);
+  rejectTransport(events => events[1].drive.duration = 30, /字符串/);
+  rejectTransport(events => events[1].drive.mapProvider = 'invalid', /mapProvider/);
+  for (const kind of ['flight', 'drive', 'transfer']) rejectTransport(events => events[0][kind] = {}, /一种交通方式/);
+  const overseasTransport = structuredClone(transportInput);
+  overseasTransport.days[0].events[0].train.arrival.zone = 'Asia/Tokyo';
+  overseasTransport.days[0].events[1].drive.mapProvider = 'google';
+  const overseas = normalize(overseasTransport);
+  assert.equal(overseas.journey.trains['check-train'].arrival.mapProvider, 'google');
+  assert.equal(overseas.journey.trains['check-train'].durationMinutes, 90);
+  assert.equal(overseas.journey.drives['check-drive'].mapProvider, 'google');
+  const unknownSeats = structuredClone(transportInput);
+  for (const key of ['seatClass', 'carriage', 'seats', 'gate']) delete unknownSeats.days[0].events[0].train[key];
+  const unassigned = normalize(unknownSeats).journey.trains['check-train'];
+  assert.deepEqual([unassigned.seatClass, unassigned.carriage, unassigned.gate, unassigned.seats], ['', '', '', []]);
 
   sample.title = '<script>alert("sample")</script>';
+  transportInput.days[0].events[0].train.seats[0].name = sample.title;
+  transportInput.days[0].events[1].drive.pickupPoint = sample.title;
+  sample.days[0].events.push(...transportInput.days[0].events);
   await build(sample, join(output, 'site'));
   const js = await readFile(join(output, 'site/data.js'), 'utf8');
   assert.ok(!js.includes('<script>'), 'User strings must not be emitted as HTML');
   const browser = {window: {}};
   runInNewContext(js, browser);
   assert.equal(browser.window.TRIP.meta.title, sample.title);
+  assert.equal(browser.window.JOURNEY.trains['check-train'].seats[0].name, sample.title);
+  assert.equal(browser.window.JOURNEY.drives['check-drive'].pickupPoint, sample.title);
   const files = await readdir(join(output, 'site'));
   assert.ok(files.includes('index.html') && files.includes('sw.js'));
   assert.match(await readFile(join(output, 'site/index.html'), 'utf8'), /<html\b[^>]*\bdata-theme="green"/, 'Default build must start in green');
@@ -116,5 +183,5 @@ try {
   assert.equal(await readFile(join(output, 'images/assets/custom/photo.png'), 'utf8'), 'demo image bytes');
   await symlink(join(skill, 'README.md'), join(output, 'escape.png'));
   await assert.rejects(build({...minimal, cover: {image: 'assets/custom/escape.png'}}, join(output, 'escaped'), output), /越出/);
-  console.log('PASS minimal/full generation, themes, domestic/overseas maps and overrides, dates/timezones, roles/alternatives, flight times, input safety, assets, offline manifest and overwrite protection');
+  console.log('PASS minimal/full generation, themes, domestic/overseas maps and overrides, dates/timezones, roles/alternatives, flight/train times and drive details, input safety, assets, offline manifest and overwrite protection');
 } finally { await rm(output, {recursive: true, force: true}); }

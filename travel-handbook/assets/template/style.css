@@ -482,3 +482,53 @@ html,body{overscroll-behavior-x:none}
   .cover-countdown>i{width:calc(.3em + 32px);min-width:.3em;flex-shrink:1;text-align:center}
 }
 @media(max-width:360px){.cover-countdown>i{width:calc(.3em + 24px)}}
+
+/* Train seats and self-drive details share the light ticket surface. */
+.ground-card{margin:16px 0 4px;padding:20px;border:1px solid var(--line);border-radius:15px;background:var(--surface,#fff);color:var(--ink);overflow-wrap:anywhere}
+.ground-card-top{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px 16px;margin-bottom:20px;font-size:13px}
+.ground-card-top>span,.train-stop>span,.train-stop small,.train-duration,.train-seating,.train-gate>span,.ground-status{color:var(--muted)}
+.train-card{container-type:inline-size}
+.train-route{display:grid;grid-template-columns:minmax(0,1fr) minmax(60px,.7fr) minmax(0,1fr);gap:12px;align-items:start}
+.train-stop:last-child{text-align:right}
+.train-stop>span,.train-stop>strong,.train-stop>b,.train-stop>small{display:block}
+.train-stop>strong{font:700 clamp(16px,11cqi,34px)/1.2 ui-monospace,SFMono-Regular,monospace;white-space:nowrap;margin:7px 0 8px;color:var(--ink);letter-spacing:-.04em}
+.train-stop>b{font-size:17px;line-height:1.5}
+.train-stop>small{font-size:12px;margin-top:6px}
+.train-stop>a{display:inline-block;font-size:12px;color:var(--accent);margin-top:7px}
+.train-duration{text-align:center;padding-top:29px}
+.train-duration>span{display:block;font-size:30px;line-height:1}
+.train-duration>small{display:block;font-size:13px;margin-top:5px;line-height:1.4}
+.train-seating{display:flex;flex-wrap:wrap;gap:12px 22px;margin:20px 0 15px;font-size:16px}
+.train-seating b,.train-seats,.train-gate>strong{color:var(--ink)}
+.train-seats{display:flex;flex-wrap:wrap;list-style:none;margin:0 0 18px;padding:7px;background:var(--surface-soft,#f5f7f7);border-radius:12px}
+.train-seats>li{display:flex;align-items:baseline;justify-content:center;gap:8px;flex:1 1 110px;padding:8px;line-height:1.5;font-size:14px}
+.train-seats>li+li{border-left:1px solid var(--line)}
+.train-gate{display:flex;align-items:baseline;flex-wrap:wrap;gap:12px 22px;border-top:1px solid var(--line);padding-top:15px;font-size:17px}
+.ground-card .ground-note,.ground-card .drive-pickup{font-size:14px;line-height:1.7;color:var(--muted);margin:12px 0}
+.ground-status{display:block;font-size:12px;line-height:1.6;margin-top:12px}
+.drive-route{display:grid;grid-template-columns:minmax(0,1fr) 36px minmax(0,1fr);align-items:start;gap:12px;font-size:22px;line-height:1.45}
+.drive-route>span{text-align:center;color:var(--muted);font-weight:400}
+.drive-route>strong:last-child{text-align:right}
+.drive-timing{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:17px 0;margin-top:18px;font-size:17px;line-height:1.5}
+.drive-timing>strong{font-weight:500}
+.drive-card .location-actions{margin-top:8px}
+@media(max-width:720px){
+  .ground-card{padding:15px 12px}
+  .ground-card-top{font-size:12px;margin-bottom:16px}
+  .train-route{gap:6px;grid-template-columns:minmax(0,1fr) 64px minmax(0,1fr)}
+  .train-stop>b{font-size:14px}
+  .train-stop>span{font-size:13px}
+  .train-duration{padding-top:25px}
+  .train-duration>small{font-size:11px}
+  .train-seating,.train-gate{font-size:14px;gap:8px 16px}
+  .train-seats>li{flex-basis:85px;padding:6px 4px;font-size:13px}
+  .drive-route{font-size:17px;grid-template-columns:minmax(0,1fr) 24px minmax(0,1fr);gap:8px}
+  .drive-timing{font-size:15px}
+}
+@media(max-width:360px){
+  .ground-card{padding:13px 10px}
+  .train-route{grid-template-columns:minmax(0,1fr) 40px minmax(0,1fr);gap:3px}
+  .train-stop>b{font-size:13px}
+  .train-seats>li{flex-basis:100%;justify-content:flex-start}
+  .train-seats>li+li{border-left:0;border-top:1px solid var(--line)}
+}

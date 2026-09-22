@@ -71,14 +71,14 @@ async function fitsViewport(page, selector) {
   assert.ok(box && box.x >= 0 && box.y >= 0 && box.x + box.width <= width + 1 && box.y + box.height <= height + 1, `${selector} fits ${width}×${height}: ${JSON.stringify(box)}`);
 }
 
-async function readableDarkSurface(page, selector) {
+async function readableSurface(page, selector, requireDark = true) {
   const {background, color} = await page.locator(selector).evaluate(node => {
     const style = getComputedStyle(node);
     return {background: style.backgroundColor, color: style.color};
   });
   const channels = value => value.match(/[\d.]+/g).slice(0, 3).map(Number);
   const luminance = value => channels(value).map(channel => channel / 255).map(channel => channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4).reduce((sum, channel, index) => sum + channel * [.2126, .7152, .0722][index], 0);
-  assert.ok(Math.max(...channels(background)) < 128, `${selector} has a dark surface: ${background}`);
+  if (requireDark) assert.ok(Math.max(...channels(background)) < 128, `${selector} has a dark surface: ${background}`);
   const light = luminance(color), dark = luminance(background);
   assert.ok((Math.max(light, dark) + .05) / (Math.min(light, dark) + .05) >= 4.5, `${selector} text contrast: ${color} on ${background}`);
 }
@@ -275,7 +275,7 @@ try {
         await chooseTheme(page, theme);
         await fitsViewport(page, '#theme-dialog');
         await noOverflow(page, `${theme} dialog at ${width}`);
-        if (theme === 'dark') await readableDarkSurface(page, '#theme-dialog');
+        if (theme === 'dark') await readableSurface(page, '#theme-dialog');
         await screenshot(page, `theme-${theme}-dialog-${width}`);
         await page.keyboard.press('Escape');
         for (const view of ['prepare', 'timeline', 'overview', 'bookings', 'transport', 'packing', 'budget']) {
@@ -285,10 +285,10 @@ try {
         }
       }
     }
-    await readableDarkSurface(page, 'body');
+    await readableSurface(page, 'body');
     await tab(page, 'prepare');
     await page.locator('#prep-add-summary').click();
-    await readableDarkSurface(page, '#custom-todo-form [name="text"]');
+    await readableSurface(page, '#custom-todo-form [name="text"]');
     await page.reload();
     assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark', 'Saved theme wins over the input default');
     await enter(page);
@@ -353,7 +353,7 @@ try {
       const selectedBackground = await background(selected);
       await selected.hover();
       assert.equal(await background(selected), selectedBackground, `${theme}: hover preserves the selected plan surface`);
-      await readableDarkSurface(page, '.plan-buttons button[aria-pressed="true"]');
+      await readableSurface(page, '.plan-buttons button[aria-pressed="true"]');
       if (['green', 'dark'].includes(theme)) await screenshot(page, `plan-buttons-${theme}-390`);
     }
     const [firstRole, secondRole] = model.trip.roles;
@@ -438,6 +438,96 @@ try {
     assert.deepEqual(await page.locator('#panel a[href]').evaluateAll(nodes => nodes.map(node => node.href)), linksBefore, 'Display timezone does not change map providers');
     await tab(page, 'bookings');
     await mapLink(page.locator('.reference-card .location-actions a'), 'google', 'Tokyo Station Hotel');
+  });
+
+  await scenario('flight, train and self-drive arrivals retain passenger details, roles and maps', 'full', departure - 86400000, async page => {
+    await tab(page, 'timeline');
+    const transport = ['flight', 'train', 'drive'].map(kind => {
+      const entry = Object.entries(model.journey[`${kind}s`]).find(([id]) => firstDay.events.some(event => event.id === id));
+      assert.ok(entry, `Example needs a first-day ${kind} arrival`);
+      const [id, details] = entry;
+      return {kind, id, details, event: firstDay.events.find(event => event.id === id)};
+    });
+    const allRole = model.trip.roles[0].id;
+    const card = kind => page.locator(`.timeline .${kind}-card`);
+    for (const {kind, details} of transport) {
+      assert.equal(await card(kind).count(), 1, `The whole group sees one ${kind} arrival`);
+      assert.ok((await card(kind).innerText()).includes(details.travelers), `${kind} identifies its travelers`);
+    }
+    const train = transport.find(item => item.kind === 'train').details;
+    for (const value of [train.trainNo, train.depart.station, train.depart.time, train.arrival.station, train.arrival.time, train.seatClass, train.carriage]) {
+      assert.ok(value && (await card('train').innerText()).includes(value), `Train displays ${value}`);
+    }
+    assert.equal(await card('train').locator('.train-seats li').count(), train.seats.length);
+    for (const seat of train.seats) {
+      const passenger = card('train').locator('.train-seats li').filter({hasText: seat.name});
+      assert.equal(await passenger.count(), 1);
+      assert.ok((await passenger.innerText()).includes(seat.seat), `${seat.name} retains the assigned seat`);
+    }
+    assert.ok((await card('train').locator('.train-gate').innerText()).includes(train.gate));
+    for (const [index, stop] of [train.depart, train.arrival].entries()) {
+      const url = new URL(await card('train').locator('.train-stop a').nth(index).getAttribute('href'));
+      assert.equal(url.origin + url.pathname, 'https://uri.amap.com/search');
+      assert.equal(url.searchParams.get('keyword'), stop.map || stop.station);
+    }
+    const drive = transport.find(item => item.kind === 'drive').details;
+    for (const value of [drive.origin, drive.destination, drive.pickupTime, drive.pickupPoint, drive.duration]) {
+      assert.ok(value && (await card('drive').innerText()).includes(value), `Self-drive displays ${value}`);
+    }
+    const driveEvent = transport.find(item => item.kind === 'drive').event;
+    const driveTiming = await card('drive').locator('.drive-timing').innerText();
+    assert.ok(driveTiming.includes(`${drive.pickupTime} 取车`) && driveTiming.includes(`${driveEvent.start} 出发`), 'Pickup and departure times keep their separate meanings');
+    const driveMaps = card('drive').locator('.location-actions a');
+    assert.equal(await driveMaps.count(), 2);
+    for (const [index, query] of [drive.origin, drive.destination].entries()) {
+      const url = new URL(await driveMaps.nth(index).getAttribute('href'));
+      assert.equal(url.origin + url.pathname, 'https://uri.amap.com/search');
+      assert.equal(url.searchParams.get('keyword'), query);
+    }
+    const flight = transport.find(item => item.kind === 'flight').details;
+    for (const value of [flight.flightNo, flight.depart.code, flight.arrival.code]) assert.ok((await card('flight').innerText()).includes(value));
+    assert.match(await card('flight').locator('.flight-countdown').innerText(), /距计划起飞/);
+    const countdown = card('flight').locator('[data-countdown-at]');
+    const initialCountdown = await countdown.innerText();
+    await page.clock.fastForward(1000);
+    assert.notEqual(await countdown.innerText(), initialCountdown, 'The flight countdown still ticks');
+
+    for (const {kind, event} of transport) {
+      const ownRole = event.roles.find(id => id !== allRole);
+      assert.ok(ownRole, `${kind} has a traveler-specific view`);
+      await role(page, ownRole);
+      for (const other of transport) assert.equal(await card(other.kind).count(), other.kind === kind ? 1 : 0, `${ownRole} sees only its own arrival`);
+    }
+    await role(page, allRole);
+    for (const theme of ['green', 'dark']) {
+      await themes(page); await chooseTheme(page, theme);
+      await page.keyboard.press('Escape');
+      for (const width of [320, 390, 1440]) {
+        await page.setViewportSize({width, height: 844});
+        await noOverflow(page, `${theme} transport at ${width}`);
+        const timesFit = await card('train').locator('.train-stop > strong').evaluateAll(nodes => nodes.every(node => {
+          const text = document.createRange();
+          text.selectNodeContents(node);
+          return text.getClientRects().length === 1 && node.scrollWidth <= node.clientWidth + 1;
+        }));
+        assert.ok(timesFit, `Train times remain on one line at ${width}px`);
+        for (const {kind} of transport) {
+          assert.equal(await card(kind).count(), 1);
+          const selector = `.timeline .${kind}-card`;
+          await readableSurface(page, selector, kind === 'flight' || theme === 'dark');
+          const fits = await card(kind).evaluate(node => node.scrollWidth <= node.clientWidth + 1);
+          assert.ok(fits, `${kind} contents fit ${width}px`);
+          if (screenshotDir && width === 390) await card(kind).screenshot({path: join(screenshotDir, `transport-${kind}-${theme}-390.png`)});
+          if (kind !== 'flight') {
+            const surface = await page.locator('.timeline .event-card').first().evaluate(node => getComputedStyle(node).backgroundColor);
+            assert.equal(await card(kind).evaluate(node => getComputedStyle(node).backgroundColor), surface, `${kind} follows the theme surface`);
+          }
+        }
+        await screenshot(page, `transport-${theme}-${width}`);
+      }
+    }
+    await page.reload(); await enter(page); await tab(page, 'timeline');
+    for (const {kind} of transport) assert.equal(await card(kind).count(), 1, 'The whole-group view survives reload');
   });
 
   await scenario('place detail, back navigation, tickets and route zoom', 'full', during, async page => {

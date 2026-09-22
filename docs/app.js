@@ -13,7 +13,7 @@
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   })[character]);
   const labels = {
-    prepare: '出发准备', timeline: '每日行程', bookings: '航班酒店',
+    prepare: '出发准备', timeline: '每日行程', bookings: '交通住宿',
     transport: '交通接送', packing: '随身准备', budget: '费用预算', overview: '行程总览'
   };
 
@@ -263,7 +263,7 @@
 
   function eventActions(event) {
     const transfer = journey.transfers[event.id];
-    const location = [journey.flights[event.id]?.depart, journey.hotels[event.id], transfer, spotsByEvent[event.id]?.[0]]
+    const location = [journey.flights[event.id]?.depart, journey.trains?.[event.id]?.depart, journey.drives?.[event.id], journey.hotels[event.id], transfer, spotsByEvent[event.id]?.[0]]
       .find(item => item?.map || item?.origin || item?.mapQuery);
     const query = location?.map || location?.origin || location?.mapQuery;
     return `<div class="focus-actions">${query ? `<a href="${mapSearchURL(query, location.mapProvider)}" target="_blank" rel="noopener" aria-label="在${mapName(location.mapProvider)}查看地点">${transfer ? '集合点地图' : '地点导航'} ↗</a>` : ''}<button data-event="${esc(event.id)}">查看安排 ↓</button></div>`;
@@ -357,6 +357,25 @@
     return `<section class="flight-card"><div class="flight-card-top"><span>航班 · ${esc(flight.flightNo)}</span><strong>${esc(flight.airline)} · ${esc(flight.travelers)}</strong></div><div class="flight-route"><div><b>${esc(flight.depart.code)}</b><span>${esc(flight.depart.city)} ${esc(flight.depart.terminal)}</span><small>${shortDate(flight.depart.date)} · ${esc(flight.depart.time)} 出发</small><a href="${mapSearchURL(flight.depart.map, flight.depart.mapProvider)}" target="_blank" rel="noopener" aria-label="在${mapName(flight.depart.mapProvider)}查看机场">机场地图 ↗</a></div><div class="flight-number"><strong>${esc(flight.flightNo)}</strong><i>────→</i></div><div><b>${esc(flight.arrival.code)}</b><span>${esc(flight.arrival.city)} ${esc(flight.arrival.terminal)}</span><small>${shortDate(flight.arrival.date)} · ${esc(flight.arrival.time)} 抵达</small><a href="${mapSearchURL(flight.arrival.map, flight.arrival.mapProvider)}" target="_blank" rel="noopener" aria-label="在${mapName(flight.arrival.mapProvider)}查看机场">机场地图 ↗</a></div></div><div class="flight-countdown"><span data-flight-label="${departure}">${departure > now() ? '距计划起飞' : '计划状态 · 非实时'}</span><strong data-countdown-at="${departure}" data-arrival-at="${arrival}">${formatCountdown(departure, arrival)}</strong><small>${esc(flight.status || '待确认')} · 起降均为当地时间</small></div></section>`;
   }
 
+  function trainCard(train) {
+    const hours = Math.floor(train.durationMinutes / 60), minutes = train.durationMinutes % 60;
+    const duration = `${hours ? `${hours}小时` : ''}${minutes ? `${minutes}分` : ''}`;
+    const stop = (point, label) => `<div class="train-stop"><span>${label}</span><strong>${esc(point.time)}</strong><b>${esc(point.station)}</b><small>${shortDate(point.date)}</small><a href="${mapSearchURL(point.map, point.mapProvider)}" target="_blank" rel="noopener" aria-label="在${mapName(point.mapProvider)}查看${esc(point.station)}">车站地图 ↗</a></div>`;
+    return `<section class="ground-card train-card" aria-label="高铁 ${esc(train.trainNo)}"><div class="ground-card-top"><b>高铁 · ${esc(train.trainNo)}</b><span>${esc(train.travelers)}</span></div><div class="train-route">${stop(train.depart, '出发')}<div class="train-duration"><span aria-hidden="true">⟶</span><small>${esc(duration)}</small></div>${stop(train.arrival, '抵达')}</div><div class="train-seating"><span>${esc(train.seatClass || '席别待确认')}</span><span>${train.carriage ? `<b>${esc(train.carriage)}</b> 车厢` : '车厢待确认'}</span></div>${train.seats.length ? `<ul class="train-seats" aria-label="乘客座位">${train.seats.map(item => `<li><span>${esc(item.name)}</span><strong>${esc(item.seat)}</strong></li>`).join('')}</ul>` : '<p class="ground-note">座位待确认</p>'}<div class="train-gate"><span>检票口</span><strong>${esc(train.gate || '待确认')}</strong></div><p class="ground-note">检票口以车站当日显示为准。${esc(train.note)}</p><small class="ground-status">${esc(train.status)} · ${esc(train.paid)}</small></section>`;
+  }
+
+  function drivingMapLinks(route) {
+    return route.mapProvider === 'amap'
+      ? [['origin', '起点'], ['destination', '终点']].map(([key, label]) => `<a href="${mapSearchURL(route[key], 'amap')}" target="_blank" rel="noopener" aria-label="在高德地图查看${label}">${label}地图 <span aria-hidden="true">↗</span></a>`).join('')
+      : `<a href="${mapDirectionsURL(route.origin, route.destination)}" target="_blank" rel="noopener" aria-label="在 Google Maps 查看路线">查看路线 <span aria-hidden="true">↗</span></a>`;
+  }
+
+  function driveCard(drive, event) {
+    const timing = [drive.pickupTime && `${drive.pickupTime} 取车`, event.start && `${event.start} 出发`].filter(Boolean).join(' · ') || '出发时间待定';
+    const status = [drive.status, drive.paid].filter(Boolean).join(' · ');
+    return `<section class="ground-card drive-card" aria-label="自驾安排"><div class="ground-card-top"><b>自驾${drive.vehicle ? ` · ${esc(drive.vehicle)}` : ''}</b><span>${esc(drive.travelers)}</span></div><div class="drive-route"><strong>${esc(drive.origin)}</strong><span aria-hidden="true">→</span><strong>${esc(drive.destination)}</strong></div>${drive.note ? `<p class="ground-note">${esc(drive.note)}</p>` : ''}<div class="drive-timing"><strong>${esc(timing)}</strong><span>${esc(drive.duration || '预计车程待确认')}</span></div>${drive.pickupPoint ? `<p class="drive-pickup">取车 · ${esc(drive.pickupPoint)}</p>` : ''}${status ? `<small class="ground-status">${esc(status)}</small>` : ''}<div class="location-actions">${drivingMapLinks(drive)}${copyLocationButton(drive.destination, '复制终点')}</div></section>`;
+  }
+
   function copyLocationButton(text, label = '复制地点') {
     return `<button type="button" class="copy-location" data-copy-location="${esc(text)}" aria-label="${esc(label)}：${esc(text)}"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg><span>${esc(label)}</span></button>`;
   }
@@ -386,9 +405,7 @@
 
   function transferCard(transfer, event) {
     const confirmed = transfer.pending && !isPending(event);
-    const maps = transfer.mapProvider === 'amap'
-      ? [['origin', '起点'], ['destination', '终点']].map(([key, label]) => `<a href="${mapSearchURL(transfer[key], 'amap')}" target="_blank" rel="noopener" aria-label="在高德地图查看${label}">${label}地图 <span aria-hidden="true">↗</span></a>`).join('')
-      : `<a href="${mapDirectionsURL(transfer.origin, transfer.destination)}" target="_blank" rel="noopener" aria-label="在 Google Maps 查看路线">查看路线 <span aria-hidden="true">↗</span></a>`;
+    const maps = drivingMapLinks(transfer);
     return `<section class="transfer-card ${transfer.pending && !confirmed ? 'pending-transfer' : ''}"><div class="journey-icon" aria-hidden="true">↗</div><div><p class="eyebrow">${esc(transfer.vehicle)}</p><h4>${esc(transfer.route)}</h4><p>${esc(transfer.time)} · ${esc(transfer.price)}</p><small>${esc(confirmed ? '已在准备清单中标记确认。' : transfer.note)}</small><div class="location-actions">${maps}${copyLocationButton(transfer.destination, '复制终点')}</div></div></section>`;
   }
 
@@ -420,6 +437,8 @@
     const active = state.active.some(item => item.event.id === event.id);
     const past = bounds.start !== null && (bounds.end ?? bounds.start) < now();
     const flight = journey.flights[event.id];
+    const train = journey.trains?.[event.id];
+    const drive = journey.drives?.[event.id];
     const transfer = journey.transfers[event.id];
     const ticket = journey.ticketsByEvent[event.id];
     const zone = displayZone();
@@ -432,7 +451,7 @@
       isPending(event) && !ticket && {text: '待确认', type: 'pending'},
       event.approx && {text: '约定目标时间', type: ''},
     ].filter(Boolean);
-    return `<article id="event-${esc(event.id)}" class="event ${active ? 'current' : past ? 'past' : ''}"><div class="event-time">${esc(event.start || event.label)}<small>${event.end ? '— ' + esc(event.end) : ''}</small></div><div class="event-card"><h3>${esc(event.title)}</h3>${timing}${flight ? flightCard(flight) : ''}${ticket ? ticketCard(ticket) : ''}${flags.length ? `<div class="event-flags">${flags.map(({text, type}) => `<span class="pill ${type}">${esc(text)}</span>`).join('')}</div>` : ''}${alternate}<div class="event-details"><p>${esc(detail)}</p>${flight ? `<p>机票费用：${esc(flight.paid || '待补充')} · ${esc(flight.status || '待确认')}</p>` : ''}${journey.hotels[event.id] ? hotelCard(journey.hotels[event.id]) : ''}${transfer ? transferCard(transfer, event) : ''}${spotLinks(event.id)}</div></div></article>`;
+    return `<article id="event-${esc(event.id)}" class="event ${active ? 'current' : past ? 'past' : ''}"><div class="event-time">${esc(event.start || event.label)}<small>${event.end ? '— ' + esc(event.end) : ''}</small></div><div class="event-card"><h3>${esc(event.title)}</h3>${timing}${flight ? flightCard(flight) : ''}${train ? trainCard(train) : ''}${drive ? driveCard(drive, event) : ''}${ticket ? ticketCard(ticket) : ''}${flags.length ? `<div class="event-flags">${flags.map(({text, type}) => `<span class="pill ${type}">${esc(text)}</span>`).join('')}</div>` : ''}${alternate}<div class="event-details"><p>${esc(detail)}</p>${flight ? `<p>机票费用：${esc(flight.paid || '待补充')} · ${esc(flight.status || '待确认')}</p>` : ''}${journey.hotels[event.id] ? hotelCard(journey.hotels[event.id]) : ''}${transfer ? transferCard(transfer, event) : ''}${spotLinks(event.id)}</div></div></article>`;
   }
 
   function renderTimeline() {
@@ -571,7 +590,7 @@
 
   function renderReference() {
     const intros = {
-      bookings: '交通与住宿信息；预订状态以你的订单为准。',
+      bookings: '按同行人核对飞机、高铁与住宿信息；预订状态以各自订单为准。',
       transport: '出门前核对集合时间、地点与交通安排。',
       packing: '随身物品与出发提醒。',
       budget: '旅行费用与预算记录。'
