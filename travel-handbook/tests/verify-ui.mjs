@@ -121,6 +121,7 @@ try {
   };
   await build(minimal, join(temporary, 'minimal'));
   await build(rich, join(temporary, 'full'));
+  await build(rich, join(temporary, 'minitool'), undefined, 'minitool');
   await build(crossBorder, join(temporary, 'cross-border'));
   server = createServer(async (request, response) => {
     try {
@@ -166,6 +167,61 @@ try {
     } finally { await context.close(); }
   }
 
+  await scenario('dock focus follows pointer and keyboard input', 'minitool', departure - 190 * 86400000, async page => {
+    const menu = page.locator('#navigation-menu-button');
+    const outline = locator => locator.evaluate(node => getComputedStyle(node).outlineStyle);
+    for (const width of [320, 390, 430]) {
+      await page.setViewportSize({width, height: 844});
+      await menu.click();
+      await page.locator('[data-tab="prepare"]').click();
+      assert.equal(await menu.evaluate(node => document.activeElement === node), true, 'Closing tools retains focus on its trigger');
+      await screenshot(page, `dock-pointer-${width}`, false);
+      assert.equal(await outline(menu), 'none', 'Pointer interaction must not leave an oversized focus ring');
+      await noOverflow(page, `dock at ${width}`);
+      const fits = await page.locator('.floating-actions').evaluate(dock => {
+        const bounds = dock.getBoundingClientRect();
+        return [...dock.querySelectorAll('.dock-action')].every(button => {
+          const rect = button.getBoundingClientRect();
+          return rect.left >= bounds.left && rect.right <= bounds.right && rect.height >= 44;
+        });
+      });
+      assert.ok(fits, 'Both dock buttons fit their container and keep touch target sizes');
+    }
+    await page.keyboard.press('Shift+Tab');
+    assert.equal(await page.locator('#dock-now').evaluate(node => document.activeElement === node), true);
+    assert.equal(await outline(page.locator('#dock-now')), 'solid', 'Keyboard navigation keeps a visible focus ring');
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Escape');
+    assert.equal(await menu.evaluate(node => document.activeElement === node), true);
+    assert.equal(await outline(menu), 'solid', 'Keyboard close restores visible focus');
+    await menu.dispatchEvent('touchstart', {touches: []});
+    await menu.evaluate(node => node.click());
+    await page.locator('[data-tab="prepare"]').evaluate(node => node.click());
+    assert.equal(await outline(menu), 'none', 'Touch events also clear the keyboard-only ring');
+    await page.setViewportSize({width: 390, height: 844});
+    for (const theme of ['green', 'dark']) {
+      await themes(page); await chooseTheme(page, theme);
+      await page.locator('#theme-dialog .theme-dialog-footer button').click();
+      await menu.click();
+      assert.equal(await menu.getAttribute('aria-expanded'), 'true');
+      assert.equal(await page.locator('#navigation-button-label').innerText(), '收起工具');
+      assert.equal(await menu.locator('.tools-close-icon').isVisible(), true);
+      assert.equal(await menu.locator('.tools-menu-icon').isVisible(), false);
+      const dock = page.locator('.floating-actions');
+      const styles = await dock.locator('.dock-action').evaluateAll(buttons => buttons.map(button => {
+        const style = getComputedStyle(button);
+        return {height: button.getBoundingClientRect().height, border: style.borderWidth, outline: style.outlineStyle};
+      }));
+      assert.deepEqual(styles, [{height: 48, border: '0px', outline: 'none'}, {height: 48, border: '0px', outline: 'none'}], 'Open tools keep two equal-height buttons without separate outlines');
+      if (screenshotDir) await dock.screenshot({path: join(screenshotDir, `dock-open-${theme}.png`)});
+      await menu.click();
+      assert.equal(await page.locator('#navigation-button-label').innerText(), '旅行工具');
+      assert.equal(await outline(menu), 'none');
+      if (screenshotDir) await dock.screenshot({path: join(screenshotDir, `dock-closed-${theme}.png`)});
+    }
+  });
+
   await scenario('cover countdown, swipe and click entry; full-page visual checks', 'full', departure - 190 * 86400000 - 5000, async page => {
     assert.equal(await page.locator('#trip-cover').isVisible(), true);
     assert.equal(await page.locator('[data-cover-unit="days"]').innerText(), '190');
@@ -204,7 +260,7 @@ try {
     await page.reload();
     assert.equal(await page.locator('#trip-cover').isVisible(), true);
     await enter(page);
-    assert.equal(await page.locator('#source-document-link').getAttribute('href'), rich.sourceURL);
+    assert.equal(await page.locator('#source-document-link a').getAttribute('href'), rich.sourceURL);
     assert.equal(await page.locator('#panel').count(), 1);
     assert.equal(await page.locator('[data-check="panel"]').getAttribute('id'), 'check-panel');
     for (const width of [320, 390, 1440]) {
@@ -652,6 +708,44 @@ try {
     await task.locator('[data-delete-todo]').click();
     await page.reload(); await enter(page);
     assert.equal(await page.locator('.custom-todo').count(), 0);
+  });
+
+  await scenario('async todo failure preserves existing tasks and the retryable draft', 'full', during - 86400000, async page => {
+    await page.setViewportSize({width: 1440, height: 844});
+    await tab(page, 'prepare');
+    await page.locator('#prep-add-summary').click();
+    await page.locator('[name="text"]').fill('已有待办 A');
+    await page.locator('#custom-todo-form [type="submit"]').click();
+    const existing = page.locator('.custom-todo').filter({hasText: '已有待办 A'});
+    await existing.waitFor();
+    await page.evaluate(() => {
+      const save = window.TripPlatform.save;
+      window.restoreTodoSave = () => { window.TripPlatform.save = save; };
+      window.pendingTodoWrites = 0;
+      window.TripPlatform.save = (key, value) => key === 'custom-todos' ? new Promise(resolve => {
+        window.pendingTodoWrites++;
+        window.failTodoSave = () => resolve(false);
+      }) : save(key, value);
+    });
+    await page.locator('#prep-add-summary').click();
+    await page.locator('[name="text"]').fill('新增待办 B');
+    await page.locator('#custom-todo-form [type="submit"]').click();
+    assert.equal(await page.locator('#custom-todo-form [type="submit"]').isDisabled(), true);
+    await existing.locator('[data-delete-todo]').click();
+    await existing.locator('[data-custom-check]').click();
+    assert.equal(await existing.locator('[data-custom-check]').isChecked(), false, 'A blocked change restores the visible checkbox');
+    assert.equal(await page.evaluate(() => window.pendingTodoWrites), 1, 'Other todo actions cannot queue a conflicting write');
+    await page.evaluate(() => window.failTodoSave());
+    await page.waitForFunction(() => !document.querySelector('#custom-todo-form [type="submit"]').disabled);
+    assert.equal(await existing.count(), 1);
+    assert.equal(await page.locator('.custom-todo').filter({hasText: '新增待办 B'}).count(), 0);
+    assert.equal(await page.locator('[name="text"]').inputValue(), '新增待办 B');
+    assert.match(await page.locator('#save-feedback').innerText(), /尚未保存/);
+    await page.evaluate(() => window.restoreTodoSave());
+    await page.locator('#custom-todo-form [type="submit"]').click();
+    await page.locator('.custom-todo').filter({hasText: '新增待办 B'}).waitFor();
+    await page.reload(); await enter(page);
+    assert.deepEqual(await page.locator('.custom-todo .check-row label strong').allTextContents(), ['已有待办 A', '新增待办 B']);
   });
 
   await scenario('timezone settings and explicit time preview', 'full', during, async page => {

@@ -71,6 +71,27 @@ python3 -m http.server 8000 --bind 127.0.0.1 --directory ../travel-handbook-demo
 node travel-handbook/tests/check.mjs
 ```
 
+## 小红书小工具离线包
+
+在仓库根目录执行（Node.js 18+、Python 3）：
+
+```sh
+node travel-handbook/tests/check.mjs
+node travel-handbook/tests/check-minitool.mjs
+node travel-handbook/scripts/build.mjs --input travel-handbook/examples/trip.json --output ../travel-handbook-minitool/site --target minitool
+python3 .codex/skills/minitool-zip-builder/scripts/audit_artifact.py ../travel-handbook-minitool/site
+cd ../travel-handbook-minitool/site
+zip -r ../travel-handbook-minitool.zip .
+cd ../../travel-handbook-github
+python3 .codex/skills/minitool-zip-builder/scripts/audit_artifact.py ../travel-handbook-minitool/travel-handbook-minitool.zip
+```
+
+输出目录须不存在或为空。ZIP 根目录直接包含 `index.html`；只打包生成网页，不包含源码、Skill、构建脚本或测试。项目 Skill 位于 `.codex/skills/minitool-zip-builder/`，按 2026-09-22 更新的[官方容器规范](https://miniapp-sandbox.xiaohongshu.com/minitool/doc)适配。
+
+小工具保留行程、日期/身份/配色切换、交通卡片、待办及门票状态。地点和来源改为页内可选文本，不跳转外链、不调用剪贴板；资源全部随包提供，不使用 Service Worker。客户端 9.46.0+ 优先使用容器 Storage API，迁移已有浏览器记录；低版本或缺少对应能力时兼容浏览器存储。写入失败会提示，读取失败不会覆盖已有记录；清理小工具数据后记录可能丢失。
+
+最终脚本按 ES2017 编写，CSS 为 Chrome 61 提供局部回退；可通过 `ACORN_PATH` 指定已有 Acorn 模块，对产物执行 ES2017 语法解析检查。自动检查和普通浏览器回归不代表容器验收：上传 ZIP 后须在创服平台模拟器、Android 真机扫码、iOS 真机扫码验证相同产物。Chrome 61 CSS 兼容性、真机性能尚未实测。
+
 ## 更新 GitHub Pages 示例
 
 GitHub Pages 使用 **Deploy from a branch → master → /docs**。`docs/` 是由内置完整示例生成的静态网页，`.nojekyll` 用于直接发布静态文件。

@@ -1,15 +1,25 @@
-(() => {
+(async () => {
   'use strict';
 
   const {meta, roles, days, sections, checklist} = window.TRIP;
   const storagePrefix = `travel-handbook:${meta.id}:`;
+  const platform = window.TripPlatform;
+  await platform.ready(storagePrefix);
   const spots = window.SPOTS;
   const spotsByEvent = window.SPOT_BY_EVENT;
   const journey = window.JOURNEY;
   const T = window.TripTime;
   const $ = selector => document.querySelector(selector);
   const desktopLayout = matchMedia('(min-width: 1100px)');
-  const esc = value => String(value ?? '').replace(/[&<>"']/g, character => ({
+  // Chrome 61 has no :focus-visible; keep keyboard focus without outlining taps.
+  const pointerInput = () => document.documentElement.classList.add('pointer-input');
+  for (const type of ['pointerdown', 'mousedown', 'touchstart']) {
+    document.addEventListener(type, pointerInput, {capture: true, passive: true});
+  }
+  document.addEventListener('keydown', event => {
+    if (!event.metaKey && !event.ctrlKey && !event.altKey) document.documentElement.classList.remove('pointer-input');
+  }, true);
+  const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, character => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   })[character]);
   const labels = {
@@ -17,8 +27,22 @@
     transport: '交通接送', packing: '随身准备', budget: '费用预算', overview: '行程总览'
   };
 
+  const gapProbe = document.createElement('div');
+  gapProbe.style.cssText = 'position:absolute;visibility:hidden;display:flex;flex-direction:column;gap:1px;padding:0;border:0;';
+  gapProbe.innerHTML = '<div style="height:1px"></div><div style="height:1px"></div>';
+  document.body.appendChild(gapProbe);
+  document.documentElement.classList.toggle('supports-flex-gap', gapProbe.scrollHeight === 3);
+  gapProbe.remove();
+
+  function updateViewportHeight() {
+    document.documentElement.style.setProperty('--app-height', `${window.visualViewport ? window.visualViewport.height : window.innerHeight}px`);
+  }
+  updateViewportHeight();
+  window.addEventListener('resize', updateViewportHeight);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', updateViewportHeight);
+
   document.title = meta.title;
-  const dateRange = `${days[0].date.replaceAll('-', '.')} — ${days.at(-1).date.replaceAll('-', '.')}`;
+  const dateRange = `${days[0].date.replace(/-/g, '.')} — ${days[days.length - 1].date.replace(/-/g, '.')}`;
   $('.cover-top span').textContent = meta.eyebrow;
   $('#cover-travelers').textContent = meta.travelers;
   $('.cover-kicker').textContent = meta.coverKicker;
@@ -29,10 +53,10 @@
   $('.cover-bottom small').textContent = meta.coverCredit;
   $('.desktop-brand span').textContent = meta.eyebrow;
   $('.desktop-brand strong').textContent = meta.title;
-  $('.desktop-brand small').textContent = `${days[0].date.slice(5).replace('-', '.')} — ${days.at(-1).date.slice(5).replace('-', '.')} · ${days.length} 天`;
+  $('.desktop-brand small').textContent = `${days[0].date.slice(5).replace('-', '.')} — ${days[days.length - 1].date.slice(5).replace('-', '.')} · ${days.length} 天`;
   $('#source-note').textContent = meta.sourceNote;
   if (meta.sourceURL) {
-    $('#source-document-link').href = meta.sourceURL;
+    $('#source-document-link').innerHTML = platform.externalLink(meta.sourceURL, '打开原攻略 ↗', 'class="footer-link"');
     $('#source-document-link').hidden = false;
   }
   $('#route-map-title').textContent = `${meta.title} · 路线`;
@@ -42,19 +66,16 @@
   $('.role-picker [role="group"]').innerHTML = roles.map(role => `<button data-role="${esc(role.id)}" aria-pressed="false">${esc(role.name)}</button>`).join('');
   $('.role-anchor').hidden = roles.length < 2;
 
-  function read(key, fallback) {
-    try { return JSON.parse(localStorage.getItem(storagePrefix + key)) ?? fallback; } catch { return fallback; }
-  }
-  function save(key, value) {
-    try { localStorage.setItem(storagePrefix + key, JSON.stringify(value)); return true; } catch { return false; }
-  }
+  const read = (key, fallback) => platform.read(key, fallback);
+  const save = (key, value) => platform.save(key, value);
 
-  let preferences = {mode: 'trip', zone: meta.zone, plans: {}, role: roles[0]?.id || '', ...read('preferences', {})};
-  if (!roles.some(role => role.id === preferences.role)) preferences.role = roles[0]?.id || '';
-  preferences.plans ||= {};
+  let preferences = Object.assign({mode: 'trip', zone: meta.zone, plans: {}, role: roles[0] && roles[0].id || ''}, read('preferences', {}));
+  if (!roles.some(role => role.id === preferences.role)) preferences.role = (roles[0] && roles[0].id) || '';
+  preferences.plans = preferences.plans || {};
   let checked = read('checklist', {});
   let ticketStatus = read('ticket-status', {});
   let customTodos = read('custom-todos', []);
+  let savingTodo = false;
   const storageMessage = '待办与门票状态仅保存到本机';
   let preview = null;
   let coverDismissed = false;
@@ -68,40 +89,45 @@
   let returnDetails = [];
   let mapZoom = 1;
 
-  const now = () => preview ?? Date.now();
+  const now = () => preview === null ? Date.now() : preview;
   const homeTab = phase => phase === 'before' ? 'prepare' : phase === 'during' ? 'timeline' : 'overview';
   const currentSpotId = () => {
     try { return decodeURIComponent(location.hash.startsWith('#spot/') ? location.hash.slice(6) : ''); }
-    catch { return ''; }
+    catch (error) { return ''; }
   };
-  const roleName = () => roles.find(role => role.id === preferences.role)?.name || meta.travelers;
+  const roleName = () => (roles.find(role => role.id === preferences.role) || {}).name || meta.travelers;
   const useAlternative = index => Boolean(days[index].alternative && preferences.plans[days[index].date] === 'B');
   const dayEvents = index => (useAlternative(index) ? days[index].alternative.events : days[index].events)
-    .filter(event => !event.roles?.length || event.roles.includes(preferences.role));
+    .filter(event => (!event.roles || !event.roles.length) || event.roles.includes(preferences.role));
   const mapName = provider => provider === 'amap' ? '高德地图' : 'Google Maps';
   const mapSearchURL = (query, provider) => provider === 'amap'
     ? `https://uri.amap.com/search?keyword=${encodeURIComponent(query)}&src=travel-handbook&callnative=0`
     : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
   const mapDirectionsURL = (origin, destination) => `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&travelmode=driving`;
-  const setThemeColor = color => document.querySelector('meta[name="theme-color"]')?.setAttribute('content', color);
+  const setThemeColor = color => {
+    const themeColor = document.querySelector('meta[name="theme-color"]');
+    if (themeColor) themeColor.setAttribute('content', color);
+  };
 
   function updateThemeColor() {
     const style = getComputedStyle(document.documentElement);
     setThemeColor(style.getPropertyValue($('#trip-cover').hidden ? '--paper' : '--cover-surface').trim() || style.getPropertyValue('--paper').trim());
   }
 
-  function applyTheme(value, persist = false) {
-    const theme = Object.hasOwn(window.TripThemes, value) ? value : meta.theme || 'green';
+  async function applyTheme(value, persist = false) {
+    const theme = Object.prototype.hasOwnProperty.call(window.TripThemes, value) ? value : meta.theme || 'green';
     document.documentElement.dataset.theme = theme;
     $('#theme-current').textContent = window.TripThemes[theme].name;
     for (const button of document.querySelectorAll('[data-theme-option]')) button.setAttribute('aria-pressed', String(button.dataset.themeOption === theme));
-    $('#theme-feedback').textContent = persist && !save('theme', theme) ? '已切换配色；浏览器未能保存，下次打开可能需要重新选择。' : `当前：${window.TripThemes[theme].name} · 选择会记在这台设备上`;
     updateThemeColor();
+    const saved = !persist || await save('theme', theme);
+    $('#theme-feedback').textContent = !saved ? '已切换配色；未能保存，下次打开可能需要重新选择。' : `当前：${window.TripThemes[theme].name} · 选择会记在这台设备上`;
   }
 
   function openThemes() {
     closeFloatingPanels();
     $('#theme-dialog').showModal();
+    document.documentElement.classList.add('theme-dialog-open');
     $('#theme-dialog [aria-pressed="true"]').focus();
   }
 
@@ -114,10 +140,11 @@
     return tripZone();
   }
   function zoneName(zone) {
-    return `${zone.split('/').at(-1).replaceAll('_', ' ')}时间`;
+    return `${zone.split('/').pop().replace(/_/g, ' ')}时间`;
   }
   function clockText(instant, zone) {
-    return new Intl.DateTimeFormat('zh-CN', {timeZone: zone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23'}).format(new Date(instant));
+    const parts = T.parts(instant, zone);
+    return `${parts.hour}:${parts.minute}`;
   }
   function shortDate(date) { return `${Number(date.slice(5, 7))}月${Number(date.slice(8, 10))}日`; }
 
@@ -225,7 +252,11 @@
     const tools = $('.floating-tools');
     $('#tools-backdrop').hidden = !open;
     document.body.classList.toggle('tools-open', open);
-    for (const element of document.querySelectorAll('#content, .sticky-nav, footer, .skip')) element.inert = open;
+    for (const element of document.querySelectorAll('#content, .sticky-nav, footer, .skip')) {
+      if ('inert' in element) element.inert = open;
+      else if (open) element.setAttribute('aria-hidden', 'true');
+      else element.removeAttribute('aria-hidden');
+    }
     if (open) { tools.setAttribute('role', 'dialog'); tools.setAttribute('aria-modal', 'true'); }
     else { tools.removeAttribute('role'); tools.removeAttribute('aria-modal'); }
     $('#navigation-menu-button').setAttribute('aria-expanded', String(open || desktopLayout.matches));
@@ -233,7 +264,7 @@
   }
 
   function closeFloatingPanels() {
-    const focusedPanel = document.activeElement?.closest('.floating-panel');
+    const focusedPanel = document.activeElement && document.activeElement.closest('.floating-panel');
     $('#role-panel').hidden = true;
     $('#navigation-panel').hidden = !desktopLayout.matches;
     $('#role-menu-button').setAttribute('aria-expanded', 'false');
@@ -248,7 +279,8 @@
     closeFloatingPanels();
     $('.tabs').setAttribute('aria-orientation', desktopLayout.matches ? 'vertical' : 'horizontal');
     renderPrimaryNav(currentSpotId());
-    if (desktopLayout.matches && focusedMenuButton) $('.tabs [aria-selected="true"]')?.focus({preventScroll: true});
+    const activeTab = $('.tabs [aria-selected="true"]');
+    if (desktopLayout.matches && focusedMenuButton && activeTab) activeTab.focus({preventScroll: true});
   }
 
   function toggleFloatingPanel(panelId, buttonId) {
@@ -258,15 +290,18 @@
     panel.hidden = !shouldOpen;
     $(`#${buttonId}`).setAttribute('aria-expanded', String(shouldOpen));
     updateFloatingState();
-    if (shouldOpen) (panel.querySelector('[aria-selected="true"], [aria-pressed="true"]') || panel.querySelector('button'))?.focus({preventScroll: true});
+    const activeButton = panel.querySelector('[aria-selected="true"], [aria-pressed="true"]') || panel.querySelector('button');
+    if (shouldOpen && activeButton) activeButton.focus({preventScroll: true});
   }
 
   function eventActions(event) {
     const transfer = journey.transfers[event.id];
-    const location = [journey.flights[event.id]?.depart, journey.trains?.[event.id]?.depart, journey.drives?.[event.id], journey.hotels[event.id], transfer, spotsByEvent[event.id]?.[0]]
-      .find(item => item?.map || item?.origin || item?.mapQuery);
-    const query = location?.map || location?.origin || location?.mapQuery;
-    return `<div class="focus-actions">${query ? `<a href="${mapSearchURL(query, location.mapProvider)}" target="_blank" rel="noopener" aria-label="在${mapName(location.mapProvider)}查看地点">${transfer ? '集合点地图' : '地点导航'} ↗</a>` : ''}<button data-event="${esc(event.id)}">查看安排 ↓</button></div>`;
+    const flight = journey.flights[event.id];
+    const train = journey.trains && journey.trains[event.id];
+    const location = [flight && flight.depart, train && train.depart, journey.drives && journey.drives[event.id], journey.hotels[event.id], transfer, (spotsByEvent[event.id] || [])[0]]
+      .find(item => item && (item.map || item.origin || item.mapQuery));
+    const query = location && (location.map || location.origin || location.mapQuery);
+    return `<div class="focus-actions">${query ? `${platform.externalLink(mapSearchURL(query, location.mapProvider), `${transfer ? '集合点地图' : '地点导航'} ↗`, `aria-label="在${mapName(location.mapProvider)}查看地点"`)}` : ''}<button data-event="${esc(event.id)}">查看安排 ↓</button></div>`;
   }
 
   function nextLine(item) {
@@ -305,7 +340,7 @@
     const hotel = journey.hotels[event.id];
     const cancelled = isCancelled(event);
     const meeting = event.meeting || '';
-    const caution = transfer ? `${transfer.time}${transfer.pending && isPending(event) ? ' · 信息待确认' : ''}` : meeting || hotel?.note || '';
+    const caution = transfer ? `${transfer.time}${transfer.pending && isPending(event) ? ' · 信息待确认' : ''}` : meeting || (hotel && hotel.note) || '';
     return `<div class="now-card"><div class="now-top"><span class="eyebrow">${label}</span><span class="now-tag">${preview !== null ? '预览' : '当地时间'}</span></div><h2>${esc(event.title)}</h2><p class="focus-time">${esc(event.label || event.start)}${cancelled ? ' · 你已标记取消，请调整计划' : ''}</p>${caution ? `<p class="focus-caution">${esc(caution)}</p>` : ''}${journey.flights[event.id] ? flightCard(journey.flights[event.id]) : ''}${eventActions(event)}${ongoing ? nextLine(state.next) : ''}</div>`;
   }
 
@@ -314,10 +349,10 @@
     const seenTickets = new Set();
     for (const event of dayEvents(selected)) {
       const bounds = T.bounds(event, days[selected].date);
-      if (bounds.start !== null && (bounds.end ?? bounds.start) < now()) continue;
+      if (bounds.start !== null && (bounds.end === null ? bounds.start : bounds.end) < now()) continue;
       const ticket = journey.ticketsByEvent[event.id];
       const transfer = journey.transfers[event.id];
-      if (transfer?.pending && isPending(event)) {
+      if ((transfer && transfer.pending) && isPending(event)) {
         items.push({id: event.id, text: `接送待确认 · ${transfer.time}`});
       } else if (ticket && !seenTickets.has(ticket.id)) {
         seenTickets.add(ticket.id);
@@ -360,20 +395,20 @@
   }
 
   function flightCard(flight) {
-    return `<section class="transport-card flight-card"><div class="transport-card-top"><span>航班 · ${esc(flight.flightNo)}</span><strong>${esc(flight.airline)} · ${esc(flight.travelers)}</strong></div><div class="flight-route"><div><b>${esc(flight.depart.code)}</b><span>${esc(flight.depart.city)} ${esc(flight.depart.terminal)}</span><small>${shortDate(flight.depart.date)} · ${esc(flight.depart.time)} 出发</small><a href="${mapSearchURL(flight.depart.map, flight.depart.mapProvider)}" target="_blank" rel="noopener" aria-label="在${mapName(flight.depart.mapProvider)}查看机场">机场地图 ↗</a></div><div class="flight-number"><strong>${esc(flight.flightNo)}</strong><i>────→</i></div><div><b>${esc(flight.arrival.code)}</b><span>${esc(flight.arrival.city)} ${esc(flight.arrival.terminal)}</span><small>${shortDate(flight.arrival.date)} · ${esc(flight.arrival.time)} 抵达</small><a href="${mapSearchURL(flight.arrival.map, flight.arrival.mapProvider)}" target="_blank" rel="noopener" aria-label="在${mapName(flight.arrival.mapProvider)}查看机场">机场地图 ↗</a></div></div>${transportCountdown(flight, 'flight')}</section>`;
+    return `<section class="transport-card flight-card"><div class="transport-card-top"><span>航班 · ${esc(flight.flightNo)}</span><strong>${esc(flight.airline)} · ${esc(flight.travelers)}</strong></div><div class="flight-route"><div><b>${esc(flight.depart.code)}</b><span>${esc(flight.depart.city)} ${esc(flight.depart.terminal)}</span><small>${shortDate(flight.depart.date)} · ${esc(flight.depart.time)} 出发</small>${platform.externalLink(mapSearchURL(flight.depart.map, flight.depart.mapProvider), `机场地图 ↗`, `aria-label="在${mapName(flight.depart.mapProvider)}查看机场"`)}</div><div class="flight-number"><strong>${esc(flight.flightNo)}</strong><i>────→</i></div><div><b>${esc(flight.arrival.code)}</b><span>${esc(flight.arrival.city)} ${esc(flight.arrival.terminal)}</span><small>${shortDate(flight.arrival.date)} · ${esc(flight.arrival.time)} 抵达</small>${platform.externalLink(mapSearchURL(flight.arrival.map, flight.arrival.mapProvider), `机场地图 ↗`, `aria-label="在${mapName(flight.arrival.mapProvider)}查看机场"`)}</div></div>${transportCountdown(flight, 'flight')}</section>`;
   }
 
   function trainCard(train) {
     const hours = Math.floor(train.durationMinutes / 60), minutes = train.durationMinutes % 60;
     const duration = `${hours ? `${hours}小时` : ''}${minutes ? `${minutes}分` : ''}`;
-    const stop = (point, label) => `<div class="train-stop"><span>${label}</span><strong>${esc(point.time)}</strong><b>${esc(point.station)}</b><small>${shortDate(point.date)}</small><a href="${mapSearchURL(point.map, point.mapProvider)}" target="_blank" rel="noopener" aria-label="在${mapName(point.mapProvider)}查看${esc(point.station)}">车站地图 ↗</a></div>`;
+    const stop = (point, label) => `<div class="train-stop"><span>${label}</span><strong>${esc(point.time)}</strong><b>${esc(point.station)}</b><small>${shortDate(point.date)}</small>${platform.externalLink(mapSearchURL(point.map, point.mapProvider), `车站地图 ↗`, `aria-label="在${mapName(point.mapProvider)}查看${esc(point.station)}"`)}</div>`;
     return `<section class="transport-card train-card" aria-label="高铁 ${esc(train.trainNo)}"><div class="transport-card-top"><span>高铁 · ${esc(train.trainNo)}</span><strong>${esc(train.travelers)}</strong></div><div class="train-route">${stop(train.depart, '出发')}<div class="train-duration"><span aria-hidden="true">⟶</span><small>${esc(duration)}</small></div>${stop(train.arrival, '抵达')}</div><div class="train-seating"><span>${esc(train.seatClass || '席别待确认')}</span><span>${train.carriage ? `<b>${esc(train.carriage)}</b> 车厢` : '车厢待确认'}</span></div>${train.seats.length ? `<ul class="train-seats" aria-label="乘客座位">${train.seats.map(item => `<li><span>${esc(item.name)}</span><strong>${esc(item.seat)}</strong></li>`).join('')}</ul>` : '<p class="ground-note">座位待确认</p>'}<div class="train-gate"><span>检票口</span><strong>${esc(train.gate || '待确认')}</strong></div><p class="ground-note">检票口以车站当日显示为准。${esc(train.note)}</p>${transportCountdown(train, 'train')}</section>`;
   }
 
   function drivingMapLinks(route) {
     return route.mapProvider === 'amap'
-      ? [['origin', '起点'], ['destination', '终点']].map(([key, label]) => `<a href="${mapSearchURL(route[key], 'amap')}" target="_blank" rel="noopener" aria-label="在高德地图查看${label}">${label}地图 <span aria-hidden="true">↗</span></a>`).join('')
-      : `<a href="${mapDirectionsURL(route.origin, route.destination)}" target="_blank" rel="noopener" aria-label="在 Google Maps 查看路线">查看路线 <span aria-hidden="true">↗</span></a>`;
+      ? [['origin', '起点'], ['destination', '终点']].map(([key, label]) => `${platform.externalLink(mapSearchURL(route[key], 'amap'), `${label}地图 <span aria-hidden="true">↗</span>`, `aria-label="在高德地图查看${label}"`)}`).join('')
+      : `${platform.externalLink(mapDirectionsURL(route.origin, route.destination), `查看路线 <span aria-hidden="true">↗</span>`, `aria-label="在 Google Maps 查看路线"`)}`;
   }
 
   function driveCard(drive, event) {
@@ -390,9 +425,10 @@
     const text = button.dataset.copyLocation;
     button.disabled = true;
     try {
-      await navigator.clipboard.writeText(text);
-      showFeedback('已复制地点，可粘贴到地图或发给司机');
-    } catch {
+      if (await platform.copy(text)) {
+        showFeedback('已复制，可粘贴使用');
+        return;
+      }
       const dialog = $('#copy-location-dialog');
       const field = $('#copy-location-value');
       field.value = text;
@@ -406,7 +442,7 @@
   }
 
   function hotelCard(hotel) {
-    return `<section class="hotel-card"><div class="journey-icon" aria-hidden="true">⌂</div><div><p class="eyebrow">住宿 · ${esc(hotel.status || '待确认')}</p><h4>${esc(hotel.name)}</h4><p>${esc(hotel.stay)} · ${esc(hotel.rooms)}<br>${esc(hotel.breakfast)} · ${esc(hotel.paid)}</p><small>${esc(hotel.note)}</small>${hotel.map ? `<div class="location-actions"><a href="${mapSearchURL(hotel.map, hotel.mapProvider)}" target="_blank" rel="noopener" aria-label="在${mapName(hotel.mapProvider)}查看酒店">查看地图 <span aria-hidden="true">↗</span></a>${copyLocationButton(hotel.map)}</div>` : ''}</div></section>`;
+    return `<section class="hotel-card"><div class="journey-icon" aria-hidden="true">⌂</div><div><p class="eyebrow">住宿 · ${esc(hotel.status || '待确认')}</p><h4>${esc(hotel.name)}</h4><p>${esc(hotel.stay)} · ${esc(hotel.rooms)}<br>${esc(hotel.breakfast)} · ${esc(hotel.paid)}</p><small>${esc(hotel.note)}</small>${hotel.map ? `<div class="location-actions">${platform.externalLink(mapSearchURL(hotel.map, hotel.mapProvider), `查看地图 <span aria-hidden="true">↗</span>`, `aria-label="在${mapName(hotel.mapProvider)}查看酒店"`)}${copyLocationButton(hotel.map)}</div>` : ''}</div></section>`;
   }
 
   function transferCard(transfer, event) {
@@ -441,17 +477,17 @@
   function eventHTML(event, day, state) {
     const bounds = T.bounds(event, day.date);
     const active = state.active.some(item => item.event.id === event.id);
-    const past = bounds.start !== null && (bounds.end ?? bounds.start) < now();
+    const past = bounds.start !== null && (bounds.end === null ? bounds.start : bounds.end) < now();
     const flight = journey.flights[event.id];
-    const train = journey.trains?.[event.id];
-    const drive = journey.drives?.[event.id];
+    const train = journey.trains && journey.trains[event.id];
+    const drive = journey.drives && journey.drives[event.id];
     const transfer = journey.transfers[event.id];
     const ticket = journey.ticketsByEvent[event.id];
     const zone = displayZone();
     const differentTime = bounds.start !== null && T.localInput(bounds.start, zone) !== T.localInput(bounds.start, event.zone);
     const alternate = differentTime ? `<p class="alternate-time">${esc(zoneName(zone))} ${esc(T.localInput(bounds.start, zone).replace('T', ' '))}</p>` : '';
     const timing = transfer ? `<p class="event-essential">${esc(transfer.time)}</p>` : '';
-    const detail = transfer?.pending && !isPending(event) ? '已在准备清单中标记确认。' : event.detail;
+    const detail = (transfer && transfer.pending) && !isPending(event) ? '已在准备清单中标记确认。' : event.detail;
     const flags = [
       active && {text: bounds.end === null ? '最近节点' : '计划时段', type: 'live'},
       isPending(event) && !ticket && {text: '待确认', type: 'pending'},
@@ -469,7 +505,7 @@
     const stay = journey.dailyStay[selected] || day.stay;
     const alternative = day.alternative;
     const plan = alternative ? `<section class="plan-toggle"><h3>天气备选 · 当前${esc(useAlternative(selected) ? alternative.title : alternative.primaryTitle || '主方案')}</h3><div class="plan-buttons"><button data-plan="A" aria-pressed="${!useAlternative(selected)}">${esc(alternative.primaryTitle || '主方案')}</button><button data-plan="B" aria-pressed="${useAlternative(selected)}">${esc(alternative.title)}</button></div><p>${esc(alternative.note || '根据天气与现场通知选择。切换仅调整当天显示，请自行确认预约。')}</p></section>` : '';
-    $('#panel').innerHTML = `<div class="today-heading"><p>DAY ${String(day.day).padStart(2, '0')} · ${shortDate(day.date)} · ${esc(day.city)}</p><h2>${esc(isToday ? '今天，按计划出发' : day.title)}</h2><small>${esc(zoneName(day.zone))} · ${esc(roleName())}</small></div><div class="timeline-intro"><div id="now-container">${nowCard()}</div>${dayReminders()}</div><section class="all-events" id="all-events"><div class="timeline-heading"><h3>${isToday ? '今天的时间线' : '这天的时间线'}</h3><span>${events.length} 项</span></div><div class="all-events-body"><p class="hint">${esc(day.summary)}</p>${plan}<div class="timeline">${events.length ? events.map(event => eventHTML(event, day, state)).join('') : '<p class="task-empty">这一天还没有具体安排，可自由探索或稍后补充。</p>'}</div></div></section><div class="stay-compact"><span>${isToday ? '今晚住宿' : '当晚住宿'}</span><strong>${esc(stay.name || '待确认')}</strong>${stay.map ? `<div class="location-actions"><a href="${mapSearchURL(stay.map, stay.mapProvider)}" target="_blank" rel="noopener" aria-label="在${mapName(stay.mapProvider)}查看${esc(stay.name)}">查看地图 <span aria-hidden="true">↗</span></a>${copyLocationButton(stay.map)}</div>` : ''}</div><section class="day-notes" id="day-notes"><h3>当天补充提醒</h3><div class="note-body">${esc((useAlternative(selected) ? alternative.notes || day.notes : day.notes) || '请按天气和服务方通知调整。')}</div></section>`;
+    $('#panel').innerHTML = `<div class="today-heading"><p>DAY ${String(day.day).padStart(2, '0')} · ${shortDate(day.date)} · ${esc(day.city)}</p><h2>${esc(isToday ? '今天，按计划出发' : day.title)}</h2><small>${esc(zoneName(day.zone))} · ${esc(roleName())}</small></div><div class="timeline-intro"><div id="now-container">${nowCard()}</div>${dayReminders()}</div><section class="all-events" id="all-events"><div class="timeline-heading"><h3>${isToday ? '今天的时间线' : '这天的时间线'}</h3><span>${events.length} 项</span></div><div class="all-events-body"><p class="hint">${esc(day.summary)}</p>${plan}<div class="timeline">${events.length ? events.map(event => eventHTML(event, day, state)).join('') : '<p class="task-empty">这一天还没有具体安排，可自由探索或稍后补充。</p>'}</div></div></section><div class="stay-compact"><span>${isToday ? '今晚住宿' : '当晚住宿'}</span><strong>${esc(stay.name || '待确认')}</strong>${stay.map ? `<div class="location-actions">${platform.externalLink(mapSearchURL(stay.map, stay.mapProvider), `查看地图 <span aria-hidden="true">↗</span>`, `aria-label="在${mapName(stay.mapProvider)}查看${esc(stay.name)}"`)}${copyLocationButton(stay.map)}</div>` : ''}</div><section class="day-notes" id="day-notes"><h3>当天补充提醒</h3><div class="note-body">${esc((useAlternative(selected) ? alternative.notes || day.notes : day.notes) || '请按天气和服务方通知调整。')}</div></section>`;
   }
 
   function tableCards(page) {
@@ -478,18 +514,18 @@
       const headers = table[0];
       return `<div class="reference-cards">${table.slice(1).filter(row => row.some(Boolean)).map(row => {
         const hotel = tab === 'bookings' && Object.values(journey.hotels).find(item => row[0] === item.name && item.map);
-        return `<article class="reference-card"><h3>${esc(row[0])}</h3>${row.slice(1).map((cell, index) => cell ? `<div class="reference-row"><span class="key">${esc(headers[index + 1] || '说明')}</span><span class="value">${esc(cell)}</span></div>` : '').join('')}${hotel ? `<div class="location-actions"><a href="${mapSearchURL(hotel.map, hotel.mapProvider)}" target="_blank" rel="noopener" aria-label="在${mapName(hotel.mapProvider)}查看${esc(hotel.name)}">查看地图 <span aria-hidden="true">↗</span></a>${copyLocationButton(hotel.map)}</div>` : ''}</article>`;
+        return `<article class="reference-card"><h3>${esc(row[0])}</h3>${row.slice(1).map((cell, index) => cell ? `<div class="reference-row"><span class="key">${esc(headers[index + 1] || '说明')}</span><span class="value">${esc(cell)}</span></div>` : '').join('')}${hotel ? `<div class="location-actions">${platform.externalLink(mapSearchURL(hotel.map, hotel.mapProvider), `查看地图 <span aria-hidden="true">↗</span>`, `aria-label="在${mapName(hotel.mapProvider)}查看${esc(hotel.name)}"`)}${copyLocationButton(hotel.map)}</div>` : ''}</article>`;
       }).join('')}</div>`;
     }).join('');
   }
 
   function referencePageHTML(page) {
-    return `${page.title ? `<h3>${esc(page.title)}</h3>` : ''}${page.text ? `<div class="note-body">${esc(page.text)}</div>` : ''}${tableCards(page)}${page.links.length ? `<div class="reference-links">${page.links.map(link => `<a href="${esc(link.url)}" target="_blank" rel="noopener">${esc(link.text || '参考资料')} ↗</a>`).join('')}</div>` : ''}`;
+    return `${page.title ? `<h3>${esc(page.title)}</h3>` : ''}${page.text ? `<div class="note-body">${esc(page.text)}</div>` : ''}${tableCards(page)}${page.links.length ? `<div class="reference-links">${page.links.map(link => `${platform.externalLink(link.url, `${esc(link.text || '参考资料')} ↗`)}`).join('')}</div>` : ''}`;
   }
 
   function preparationTasks(today) {
-    const tasks = checklist.map(task => ({...task, done: Boolean(checked[task.id])}));
-    tasks.push(...customTodos.map(todo => ({...todo, custom: true})));
+    const tasks = checklist.map(task => Object.assign({}, task, {done: Boolean(checked[task.id])}));
+    tasks.push(...customTodos.map(todo => Object.assign({}, todo, {custom: true})));
     const pending = tasks.filter(task => !task.done);
     const taskDate = task => task.due || task.activeFrom || '';
     const priority = task => !taskDate(task) ? 2 : taskDate(task) < today ? 0 : 1;
@@ -503,7 +539,7 @@
   function preparationTaskHTML(task) {
     if (task.custom) return customTodoHTML(task);
     const date = task.due || task.activeFrom;
-    return `<article class="reference-card task-card ${task.done ? 'done' : ''} ${date ? 'task-timed' : ''}"><div class="check-row"><input type="checkbox" id="check-${esc(task.id)}" data-check="${esc(task.id)}" ${task.done ? 'checked' : ''}><label for="check-${esc(task.id)}"><strong>${esc(task.text)}</strong>${date ? `<small class="task-date">${shortDate(date)}${task.dueTime ? ` ${esc(task.dueTime)}` : ''} · 行程所在地时间</small>` : ''}</label></div><div class="task-copy"><p class="task-summary">${esc(task.detail)}</p>${task.url ? `<a class="task-official-link" href="${esc(task.url)}" target="_blank" rel="noopener">查看相关资料 <span aria-hidden="true">↗</span></a>` : ''}</div></article>`;
+    return `<article class="reference-card task-card ${task.done ? 'done' : ''} ${date ? 'task-timed' : ''}"><div class="check-row"><input type="checkbox" id="check-${esc(task.id)}" data-check="${esc(task.id)}" ${task.done ? 'checked' : ''}><label for="check-${esc(task.id)}"><strong>${esc(task.text)}</strong>${date ? `<small class="task-date">${shortDate(date)}${task.dueTime ? ` ${esc(task.dueTime)}` : ''} · 行程所在地时间</small>` : ''}</label></div><div class="task-copy"><p class="task-summary">${esc(task.detail)}</p>${task.url ? `${platform.externalLink(task.url, `查看相关资料 <span aria-hidden="true">↗</span>`, `class="task-official-link"`)}` : ''}</div></article>`;
   }
 
   function preparationSectionHTML(id, title, tasks) {
@@ -531,12 +567,21 @@
     $('#todo-date-label').textContent = date ? `${shortDate(date)}${form.elements.dueTime.value ? ` ${form.elements.dueTime.value}` : ''}` : '添加日期与时间';
   }
 
+  function updatePreparationLayout() {
+    const formPanel = $('#prep-add');
+    const open = Boolean(formPanel && formPanel.open);
+    document.body.classList.toggle('prep-add-open', open);
+    const sidebar = $('.prep-sidebar');
+    if (sidebar) sidebar.classList.toggle('prep-add-open', open);
+  }
+
   function updateTodoForm() {
     const form = $('#custom-todo-form');
     if (!form) return;
     const editing = Boolean(form.dataset.editTodo);
     $('#prep-add-summary').innerHTML = `<span aria-hidden="true">＋</span> ${editing ? '编辑待办' : '添加待办'}<small>${editing ? '修改后点击保存' : '记下还需要准备的事'}</small>`;
     form.querySelector('[type="submit"]').textContent = editing ? '保存修改' : '添加待办';
+    form.querySelector('[type="submit"]').disabled = savingTodo;
     form.querySelector('[data-action="close-todo"]').textContent = editing ? '取消编辑' : '收起';
     updateTodoDateLabel();
   }
@@ -548,7 +593,7 @@
     if (form.dataset.editTodo !== id) {
       const current = customTodos.find(item => item.id === form.dataset.editTodo);
       const fields = ['text', 'description', 'due', 'dueTime'];
-      const hasDraft = fields.some(name => form.elements[name].value !== (current?.[name] || ''));
+      const hasDraft = fields.some(name => form.elements[name].value !== ((current && current[name]) || ''));
       if (hasDraft && !window.confirm('当前有未保存的内容，放弃并编辑这条待办？')) return;
       form.dataset.editTodo = id;
       for (const name of fields) form.elements[name].value = todo[name] || '';
@@ -570,8 +615,9 @@
       updateTodoForm();
     }
     $('#prep-add').open = false;
-    const task = id && document.getElementById(`custom-${id}`)?.closest('.custom-todo');
-    (task?.querySelector('[data-edit-todo]') || $('#prep-add-summary')).focus({preventScroll: true});
+    const input = id && document.getElementById(`custom-${id}`);
+    const task = input && input.closest('.custom-todo');
+    ((task && task.querySelector('[data-edit-todo]')) || $('#prep-add-summary')).focus({preventScroll: true});
   }
 
   function renderPrepare() {
@@ -606,10 +652,7 @@
 
   function overviewDayCard(day, index) {
     const events = dayEvents(index);
-    const tickets = [...new Map(events.flatMap(event => {
-      const ticket = journey.ticketsByEvent[event.id];
-      return ticket ? [[ticket.id, ticket]] : [];
-    })).values()];
+    const tickets = [...new Map(events.map(event => journey.ticketsByEvent[event.id]).filter(Boolean).map(ticket => [ticket.id, ticket])).values()];
     const unpaid = tickets.filter(ticket => ['todo', 'onsite'].includes(ticketStatus[ticket.id] || ticket.defaultStatus)).length;
     const booked = tickets.filter(ticket => (ticketStatus[ticket.id] || ticket.defaultStatus) === 'booked').length;
     const ticketLabel = unpaid ? `${unpaid} 项待购票` : booked ? `${booked} 项已购票` : tickets.length ? '购票项目已取消' : '无待购票项目';
@@ -630,8 +673,8 @@
 
   function renderOverview() {
     const cities = days.reduce((result, day, index) => {
-      const last = result.at(-1);
-      if (last?.name === day.city) last.end = day.date;
+      const last = result[result.length - 1];
+      if (last && last.name === day.city) last.end = day.date;
       else result.push({name: day.city, start: day.date, end: day.date, day: index});
       return result;
     }, []);
@@ -662,8 +705,8 @@
 
   function spotVisitEvent(spot) {
     const day = days[spot.day - 1];
-    const events = [...day.events, ...(day.alternative?.events || [])].filter(event => spot.eventIds.includes(event.id));
-    return events.find(event => event.title.includes(spot.name)) || events.at(-1);
+    const events = [...day.events, ...((day.alternative && day.alternative.events) || [])].filter(event => spot.eventIds.includes(event.id));
+    return events.find(event => event.title.includes(spot.name)) || events[events.length - 1];
   }
 
   function renderSpotDetail(spot) {
@@ -681,15 +724,15 @@
       <figure class="spot-hero"><img src="${esc(spot.image || 'assets/placeholder.svg')}" alt="${esc(spot.name)}" width="1200" height="800"><figcaption>${esc(spot.source || meta.sourceNote)}</figcaption></figure>
       <div class="spot-detail-body">
         <header class="spot-heading"><p class="eyebrow">D${spot.day} · ${esc(spot.city)} · 点位详情</p><h2>${esc(spot.name)}</h2></header>
-        <div class="spot-facts"><span><small>${shortDate(day.date)}</small><strong>${esc(visit?.label || '按当天计划')}</strong></span><span><small>所在城市</small><strong>${esc(spot.city)}</strong></span><span><small>同行</small><strong>${esc(meta.travelers)}</strong></span></div>
+        <div class="spot-facts"><span><small>${shortDate(day.date)}</small><strong>${esc((visit && visit.label) || '按当天计划')}</strong></span><span><small>所在城市</small><strong>${esc(spot.city)}</strong></span><span><small>同行</small><strong>${esc(meta.travelers)}</strong></span></div>
         <p class="spot-lead">${esc(spot.summary)}</p>
         <div class="spot-location">
           <div class="spot-location-heading"><span class="spot-location-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0Z"/><circle cx="12" cy="10" r="2.5"/></svg></span><div><span class="spot-location-label">地点与导航</span><p>${esc(spot.mapQuery)}</p></div></div>
-          <div class="spot-location-actions"><a class="spot-map-link" href="${mapSearchURL(spot.mapQuery, spot.mapProvider)}" target="_blank" rel="noopener">${mapName(spot.mapProvider)} <span aria-hidden="true">↗</span></a>${copyLocationButton(spot.mapQuery)}</div>
+          <div class="spot-location-actions">${platform.externalLink(mapSearchURL(spot.mapQuery, spot.mapProvider), `${mapName(spot.mapProvider)} <span aria-hidden="true">↗</span>`, `class="spot-map-link"`)}${copyLocationButton(spot.mapQuery)}</div>
         </div>
         ${ticket ? `<section class="spot-ticket-section"><div class="section-heading"><div><p class="eyebrow">TICKET</p><h3>门票与预约</h3></div><span>攻略参考价</span></div>${ticketCard(ticket)}</section>` : ''}
         <section class="spot-plan"><h3>这一站，看什么</h3><ul>${spot.tips.map(tip => `<li>${esc(tip)}</li>`).join('')}</ul></section>
-        ${spot.souvenirs?.length ? `<section class="souvenir-section"><p class="eyebrow">BUY HERE · 这个点顺手买</p><h3>相关特产</h3><div class="souvenir-grid">${spot.souvenirs.map(souvenirHTML).join('')}</div></section>` : ''}
+        ${(spot.souvenirs && spot.souvenirs.length) ? `<section class="souvenir-section"><p class="eyebrow">BUY HERE · 这个点顺手买</p><h3>相关特产</h3><div class="souvenir-grid">${spot.souvenirs.map(souvenirHTML).join('')}</div></section>` : ''}
         <nav class="detail-pagination" aria-label="行程点位切换">${previous ? `<button data-spot="${esc(previous.id)}"><small>上一个${previous.day !== spot.day ? ` · ${shortDate(days[previous.day - 1].date)}` : ''}</small><strong>← ${esc(previous.name)}</strong></button>` : '<span></span>'}${next ? `<button data-spot="${esc(next.id)}"><small>下一个${next.day !== spot.day ? ` · ${shortDate(days[next.day - 1].date)}` : ''}</small><strong>${esc(next.name)} →</strong></button>` : '<span></span>'}</nav>
       </div>
     </article>`;
@@ -741,10 +784,14 @@
       nextForm.elements.dueTime.value = draft.dueTime;
     }
     updateTodoForm();
-    const nextFocus = focusId ? document.getElementById(focusId) : nextForm?.elements[focusName];
-    const collapsedGroup = nextFocus?.closest('details:not([open])');
-    (collapsedGroup?.querySelector('summary') || nextFocus)?.focus({preventScroll: true});
-    if (selection) nextFocus?.setSelectionRange(...selection);
+    updatePreparationLayout();
+    const timelineIntro = $('.timeline-intro');
+    if (timelineIntro) timelineIntro.classList.toggle('has-day-reminders', Boolean(timelineIntro.querySelector('.day-reminders')));
+    const nextFocus = focusId ? document.getElementById(focusId) : nextForm && nextForm.elements[focusName];
+    const collapsedGroup = nextFocus && nextFocus.closest('details:not([open])');
+    const focusTarget = (collapsedGroup && collapsedGroup.querySelector('summary')) || nextFocus;
+    if (focusTarget) focusTarget.focus({preventScroll: true});
+    if (selection && nextFocus) nextFocus.setSelectionRange(...selection);
     if (preserveDetails) window.scrollTo(0, scroll);
     lastSignature = signature();
   }
@@ -753,12 +800,12 @@
     const day = days[selected];
     const current = T.dayIndex(days, now());
     const state = T.schedule(dayEvents(selected), day.date, now());
-    return `${current.phase}/${current.index}/${T.localDate(now(), tripZone())}/${T.parts(now(), day.zone).hour}/${tab === 'prepare' ? T.parts(now(), tripZone()).minute : ''}/${tab}/${selected}/${preferences.role}/${currentSpotId()}/${state.active.map(item => item.event.id).join(',')}/${state.next?.event.id || ''}`;
+    return `${current.phase}/${current.index}/${T.localDate(now(), tripZone())}/${T.parts(now(), day.zone).hour}/${tab === 'prepare' ? T.parts(now(), tripZone()).minute : ''}/${tab}/${selected}/${preferences.role}/${currentSpotId()}/${state.active.map(item => item.event.id).join(',')}/${(state.next && state.next.event.id) || ''}`;
   }
 
   function scrollDate() {
     const active = $('.date-button.active');
-    if (active) $('#dates').scrollTo({left: active.offsetLeft - $('#dates').clientWidth / 2 + active.offsetWidth / 2, behavior: 'auto'});
+    if (active) $('#dates').scrollLeft = active.offsetLeft - $('#dates').clientWidth / 2 + active.offsetWidth / 2;
   }
 
   function clearSpot() {
@@ -769,7 +816,8 @@
     if (tab !== 'timeline') return;
     const day = days[selected];
     const state = T.schedule(dayEvents(selected), day.date, now());
-    const id = eventId || (state.active[0] || state.next || state.recent)?.event.id;
+    const scheduled = state.active[0] || state.next || state.recent;
+    const id = eventId || (scheduled && scheduled.event.id);
     const target = id ? $('#event-' + id) : $('#all-events');
     if (!target) return;
     target.scrollIntoView({block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
@@ -790,7 +838,7 @@
       returnDetails = openDetails();
       location.hash = `spot/${encodeURIComponent(id)}`;
     } else {
-      if (spots.find(item => item.id === id)?.day !== selected + 1) {
+      if ((spots.find(item => item.id === id) || {}).day !== selected + 1) {
         followNow = false;
         returnScrollY = 0;
         returnDetails = [];
@@ -814,10 +862,11 @@
     $('#zone-explanation').textContent = `当前：${zoneName(displayZone())}（${displayZone()}）。跟随行程依据计划位置，不读取 GPS。`;
     $('#settings-error').textContent = ''; dialog.showModal();
   }
-  function applyZone() {
+  async function applyZone() {
     const mode = $('#zone-mode').value, zone = $('#custom-zone').value.trim();
-    if (mode === 'custom') { try { new Intl.DateTimeFormat('en', {timeZone: zone}).format(); } catch { throw new Error('请选择有效的 IANA 时区，例如 Asia/Tokyo 或 Europe/London。'); } }
-    preferences = {...preferences, mode, zone}; save('preferences', preferences);
+    if (mode === 'custom') { try { new Intl.DateTimeFormat('en', {timeZone: zone}).format(); } catch (error) { throw new Error('请选择有效的 IANA 时区，例如 Asia/Tokyo 或 Europe/London。'); } }
+    preferences = Object.assign({}, preferences, {mode, zone});
+    if (!(await save('preferences', preferences))) throw new Error('时区已切换，但未能保存；请重试保存。');
   }
   function stopPreview() { preview = null; $('#settings').close(); goNow(); }
 
@@ -831,6 +880,7 @@
   function showFeedback(message, duration = 2400) {
     const feedback = $('#save-feedback');
     feedback.textContent = message;
+    feedback.classList.remove('has-action');
     feedback.dataset.saved = 'false';
     preparationUndo = null;
     feedback.hidden = false;
@@ -839,16 +889,18 @@
   }
 
   function showSaveStatus(saved, undo = null) {
-    showFeedback(saved ? '已保存到本机' : '本次更改尚未保存，请检查浏览器存储设置', undo ? 8000 : saved ? 2400 : 6000);
+    showFeedback(saved ? '已保存到本机' : '本次更改尚未保存，请重试并检查本机存储空间', undo ? 8000 : saved ? 2400 : 6000);
     const feedback = $('#save-feedback');
     preparationUndo = undo;
+    feedback.classList.toggle('has-action', Boolean(undo));
     feedback.dataset.saved = String(saved);
-    if (undo) feedback.innerHTML = `<span>${saved ? undo.done ? '已标记完成，可在「已完成」中恢复' : '已恢复为待办' : '本次更改尚未保存，请检查浏览器存储设置'}</span><button type="button" data-action="undo-preparation">撤销</button>`;
+    if (undo) feedback.innerHTML = `<span>${saved ? undo.done ? '已标记完成，可在「已完成」中恢复' : '已恢复为待办' : '本次更改尚未保存，请重试并检查本机存储空间'}</span><button type="button" data-action="undo-preparation">撤销</button>`;
   }
 
-  function undoPreparation() {
+  async function undoPreparation() {
     if (!preparationUndo) return;
     const {type, id, done} = preparationUndo;
+    if (savingTodo && type === 'todo') { showFeedback('正在保存待办，请稍后再试。'); return; }
     const value = !done;
     if (type === 'check') checked[id] = value;
     else {
@@ -856,20 +908,25 @@
       if (!todo) { showSaveStatus(false); return; }
       todo.done = value;
     }
-    const saved = saveState(type);
+    const saved = await saveState(type);
     render(true);
     const input = document.getElementById(type === 'check' ? `check-${id}` : `custom-${id}`);
-    const group = input?.closest('details');
+    const group = input && input.closest('details');
     if (group) group.open = true;
-    input?.focus({preventScroll: true});
+    if (input) input.focus({preventScroll: true});
     showSaveStatus(saved);
   }
 
-  document.addEventListener('click', event => {
+  $('#theme-dialog').addEventListener('close', () => document.documentElement.classList.remove('theme-dialog-open'));
+  document.addEventListener('toggle', event => {
+    if (event.target.id === 'prep-add') updatePreparationLayout();
+  }, true);
+
+  document.addEventListener('click', async event => {
     if (event.target.closest('[data-action="close-tools"]')) { closeFloatingPanels(); return; }
     if (!event.target.closest('.floating-tools, .role-anchor, dialog')) closeFloatingPanels();
     if (event.target.closest('#prep-add-summary')) requestAnimationFrame(() => {
-      if ($('#prep-add')?.open && document.activeElement === $('#prep-add-summary')) $('#custom-todo-form').elements.text.focus({preventScroll: true});
+      if (($('#prep-add') && $('#prep-add').open) && document.activeElement === $('#prep-add-summary')) $('#custom-todo-form').elements.text.focus({preventScroll: true});
     });
     const button = event.target.closest('button'); if (!button) return;
     if (button.id === 'enter-trip') enterTrip();
@@ -900,13 +957,17 @@
     else if (button.dataset.spot) openSpot(button.dataset.spot);
     else if (button.dataset.event) locate(button.dataset.event);
     else if (button.dataset.action === 'all-events') locate();
-    else if (button.dataset.plan) { preferences.plans[days[selected].date] = button.dataset.plan; save('preferences', preferences); render(true); }
-    else if (button.dataset.role) { preferences.role = button.dataset.role; save('preferences', preferences); closeFloatingPanels(); render(); }
+    else if (button.dataset.plan) { preferences.plans[days[selected].date] = button.dataset.plan; render(true); showSaveStatus(await save('preferences', preferences)); }
+    else if (button.dataset.role) { preferences.role = button.dataset.role; closeFloatingPanels(); render(); showSaveStatus(await save('preferences', preferences)); }
     else if (button.dataset.action === 'open-route-map') { setMapZoom(1); $('#route-map-dialog').showModal(); }
     else if (button.dataset.mapZoom) { setMapZoom(button.dataset.mapZoom === 'reset' ? 1 : mapZoom + (button.dataset.mapZoom === 'in' ? .5 : -.5)); }
     else if (button.dataset.copyLocation) void copyLocation(button);
     else if (button.dataset.editTodo) editTodo(button.dataset.editTodo);
-    else if (button.dataset.deleteTodo) { customTodos = customTodos.filter(todo => todo.id !== button.dataset.deleteTodo); const saved = saveState('todo'); render(true); showSaveStatus(saved); }
+    else if (button.dataset.deleteTodo) {
+      if (savingTodo) { showFeedback('正在保存待办，请稍后再试。'); return; }
+      customTodos = customTodos.filter(todo => todo.id !== button.dataset.deleteTodo);
+      const saved = await saveState('todo'); render(true); showSaveStatus(saved);
+    }
     else if (button.dataset.action === 'undo-preparation') undoPreparation();
     else if (button.dataset.action === 'close-todo') closeTodo();
     else if (button.dataset.action === 'clear-todo-date') {
@@ -922,54 +983,75 @@
     else if (button.dataset.action === 'open-notes') { $('#day-notes').scrollIntoView({block: 'center', behavior: 'smooth'}); }
     else if (button.id === 'exit-preview' || button.id === 'preview-stop') stopPreview();
   });
-  document.addEventListener('change', event => {
+  document.addEventListener('change', async event => {
     if (['due', 'dueTime'].includes(event.target.name) && event.target.closest('#custom-todo-form')) updateTodoDateLabel();
     else if (event.target.dataset.check) {
       const id = event.target.dataset.check, done = event.target.checked;
       checked[id] = done;
-      const saved = saveState('check');
+      const saved = await saveState('check');
       if (tab === 'prepare') render(true);
       showSaveStatus(saved, tab === 'prepare' ? {type: 'check', id, done} : null);
     } else if (event.target.dataset.customCheck) {
       const todo = customTodos.find(item => item.id === event.target.dataset.customCheck);
+      if (savingTodo) {
+        event.target.checked = Boolean(todo && todo.done);
+        showFeedback('正在保存待办，请稍后再试。');
+        return;
+      }
       if (todo) todo.done = event.target.checked;
-      const saved = todo && saveState('todo'); render(true); showSaveStatus(saved, todo ? {type: 'todo', id: todo.id, done: todo.done} : null);
+      const saved = todo && await saveState('todo'); render(true); showSaveStatus(saved, todo ? {type: 'todo', id: todo.id, done: todo.done} : null);
     } else if (event.target.dataset.ticket) {
       ticketStatus[event.target.dataset.ticket] = event.target.value;
-      const saved = saveState('ticket');
+      const saved = await saveState('ticket');
       const ticketId = event.target.dataset.ticket;
       render(true);
-      document.querySelector(`[data-ticket="${ticketId}"]`)?.focus({preventScroll: true});
+      const input = document.querySelector(`[data-ticket="${ticketId}"]`);
+      if (input) input.focus({preventScroll: true});
       showSaveStatus(saved);
     }
   });
-  document.addEventListener('submit', event => {
+  document.addEventListener('submit', async event => {
     if (event.target.id !== 'custom-todo-form') return;
     event.preventDefault();
-    const form = new FormData(event.target); const text = String(form.get('text') || '').trim();
+    const submittedForm = event.target;
+    if (savingTodo) return;
+    const form = new FormData(submittedForm); const text = String(form.get('text') || '').trim();
     if (!text) return;
-    const editId = event.target.dataset.editTodo;
+    const editId = submittedForm.dataset.editTodo || '';
     const previous = editId ? customTodos.find(item => item.id === editId) : null;
     if (editId && !previous) {
       showFeedback('这条待办已被删除，无法保存修改。请取消编辑后重新添加。', 6000);
       return;
     }
     const due = String(form.get('due') || '');
-    const todo = {id: previous?.id || globalThis.crypto?.randomUUID?.() || String(Date.now()), text, description: String(form.get('description') || '').trim(), due, dueTime: due ? String(form.get('dueTime') || '') : '', done: previous?.done || false};
+    const todo = {id: (previous && previous.id) || (window.crypto && typeof window.crypto.randomUUID === 'function' && window.crypto.randomUUID()) || String(Date.now()), text, description: String(form.get('description') || '').trim(), due, dueTime: due ? String(form.get('dueTime') || '') : '', done: (previous && previous.done) || false};
     const previousTodos = customTodos;
     customTodos = previous ? customTodos.map(item => item.id === editId ? todo : item) : [...customTodos, todo];
-    const saved = saveState('todo');
+    savingTodo = true;
+    updateTodoForm();
+    const saved = await saveState('todo');
+    savingTodo = false;
+    updateTodoForm();
     if (!saved) {
       customTodos = previousTodos;
+      render(true);
       showSaveStatus(false);
       return;
     }
-    delete $('#custom-todo-form').dataset.editTodo;
-    $('#custom-todo-form').reset();
-    $('#todo-date').open = false;
+    const currentForm = $('#custom-todo-form');
+    const unchanged = currentForm && (currentForm.dataset.editTodo || '') === editId && ['text', 'description', 'due', 'dueTime'].every(name => currentForm.elements[name].value === String(form.get(name) || ''));
+    if (unchanged) {
+      delete currentForm.dataset.editTodo;
+      currentForm.reset();
+      $('#todo-date').open = false;
+    }
     render(true);
-    $('#prep-add').open = false;
-    document.getElementById(`custom-${todo.id}`)?.focus();
+    if (unchanged) {
+      $('#prep-add').open = false;
+      updatePreparationLayout();
+      const input = document.getElementById(`custom-${todo.id}`);
+      if (input) input.focus();
+    }
     showSaveStatus(saved);
   });
   window.addEventListener('hashchange', () => { render(); if (!currentSpotId()) restoreDetails(returnDetails); window.scrollTo(0, currentSpotId() ? 0 : returnScrollY); });
@@ -981,14 +1063,15 @@
     const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === nextKey ? 1 : -1) + tabs.length) % tabs.length;
     tabs[next].focus();
   });
-  desktopLayout.addEventListener('change', updateNavigationLayout);
+  if (typeof desktopLayout.addEventListener === 'function') desktopLayout.addEventListener('change', updateNavigationLayout);
+  else desktopLayout.addListener(updateNavigationLayout);
   updateNavigationLayout();
   document.addEventListener('keydown', event => {
     if ($('dialog[open]')) return;
     if (event.key === 'Escape') closeFloatingPanels();
     if (event.key !== 'Tab' || !document.body.classList.contains('tools-open')) return;
     const buttons = [...document.querySelectorAll('.floating-tools button')].filter(button => !button.disabled && !button.closest('[hidden]') && button.getClientRects().length);
-    const first = buttons[0], last = buttons.at(-1);
+    const first = buttons[0], last = buttons[buttons.length - 1];
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
     else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
   });
@@ -1024,8 +1107,8 @@
   }, {passive: true});
   $('#trip-cover').addEventListener('touchcancel', () => { coverTouchStart = null; returnCover(); }, {passive: true});
   $('#zone-mode').addEventListener('change', () => { $('#custom-zone-field').hidden = $('#zone-mode').value !== 'custom'; });
-  $('#settings-save').addEventListener('click', () => { try { applyZone(); $('#settings').close(); render(); } catch (error) { $('#settings-error').textContent = error.message; } });
-  $('#preview-start').addEventListener('click', () => { try { applyZone(); const input = $('#preview-time').value; if (!input) throw new Error('请选择预览日期与时间。'); const [date, time] = input.split('T'); preview = T.localInstant(date, time, displayZone()); $('#settings').close(); goNow(); } catch (error) { $('#settings-error').textContent = error.message; } });
+  $('#settings-save').addEventListener('click', async () => { try { await applyZone(); $('#settings').close(); render(); } catch (error) { $('#settings-error').textContent = error.message; } });
+  $('#preview-start').addEventListener('click', async () => { try { await applyZone(); const input = $('#preview-time').value; if (!input) throw new Error('请选择预览日期与时间。'); const [date, time] = input.split('T'); preview = T.localInstant(date, time, displayZone()); $('#settings').close(); goNow(); } catch (error) { $('#settings-error').textContent = error.message; } });
 
   const zones = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : [meta.zone, 'UTC', 'Asia/Shanghai', 'Asia/Tokyo', 'Europe/London', 'America/New_York'];
   $('#zone-options').innerHTML = zones.map(zone => `<option value="${esc(zone)}"></option>`).join('');
@@ -1054,17 +1137,5 @@
     if (event.target instanceof HTMLImageElement && !event.target.src.endsWith('/assets/placeholder.svg')) event.target.src = 'assets/placeholder.svg';
   }, true);
 
-  async function offline() {
-    const status = $('#offline-status');
-    if (!('serviceWorker' in navigator) || !window.isSecureContext) { status.textContent = '离线功能需要 HTTPS 或本地预览'; return; }
-    try {
-      const registration = await navigator.serviceWorker.register('sw.js'); await navigator.serviceWorker.ready;
-      const worker = registration.active || registration.waiting; if (worker) worker.postMessage('CACHE_STATUS');
-      status.textContent = navigator.onLine ? '正在准备离线内容' : '当前离线 · 使用已保存内容';
-    } catch { status.textContent = '离线缓存未完成，请联网重新打开此页'; }
-  }
-  navigator.serviceWorker?.addEventListener('message', event => { if (event.data === 'CACHE_READY') $('#offline-status').textContent = '离线内容已就绪 · 保存在此设备'; });
-  window.addEventListener('offline', () => { $('#offline-status').textContent = '当前离线 · 使用已保存内容'; });
-  window.addEventListener('online', offline);
-  offline();
+  platform.offline();
 })();

@@ -1,5 +1,10 @@
 (function(root){
-  const parts=(instant,zone)=>Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(new Date(instant)).filter(p=>p.type!=='literal').map(p=>[p.type,p.value]));
+  function parts(instant,zone){
+    const result={};
+    for(const part of new Intl.DateTimeFormat('en-CA',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).formatToParts(new Date(instant)))if(part.type!=='literal')result[part.type]=part.value;
+    if(result.hour==='24')result.hour='00';
+    return result;
+  }
   function localDate(instant,zone){const p=parts(instant,zone);return `${p.year}-${p.month}-${p.day}`;}
   function localInput(instant,zone){const p=parts(instant,zone);return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;}
   function localInstant(date,time,zone){
@@ -19,9 +24,9 @@
     return {start,end};
   }
   function schedule(events,date,now){
-    const timed=events.map(event=>({event,...bounds(event,date)})).filter(x=>x.start!==null).sort((a,b)=>a.start-b.start);
+    const timed=events.map(event=>Object.assign({event},bounds(event,date))).filter(x=>x.start!==null).sort((a,b)=>a.start-b.start);
     const active=timed.filter(x=>x.end!==null&&x.start<=now&&now<x.end);
-    const recent=timed.filter(x=>x.start<=now).at(-1);
+    const started=timed.filter(x=>x.start<=now),recent=started[started.length-1];
     // A point is a recent scheduled milestone, never an invented activity duration.
     if(recent&&recent.end===null&&!active.includes(recent))active.push(recent);
     return {active,recent,next:timed.find(x=>x.start>now),timed};
@@ -29,9 +34,9 @@
   function dayIndex(days,now){
     const first=localInstant(days[0].date,'00:00',days[0].zone);
     if(now<first)return {index:0,phase:'before'};
-    const last=days.at(-1);if(now>=localInstant(addDay(last.date),'00:00',last.zone))return {index:days.length-1,phase:'after'};
+    const last=days[days.length-1];if(now>=localInstant(addDay(last.date),'00:00',last.zone))return {index:days.length-1,phase:'after'};
     for(let i=days.length-1;i>=0;i--)if(now>=localInstant(days[i].date,'00:00',days[i].zone))return {index:i,phase:'during'};
     return {index:0,phase:'before'};
   }
   root.TripTime={parts,localDate,localInput,localInstant,bounds,schedule,dayIndex,addDay};
-})(typeof window==='undefined'?globalThis:window);
+})(typeof window==='undefined'?global:window);

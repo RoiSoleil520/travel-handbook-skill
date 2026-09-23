@@ -261,12 +261,16 @@ function routeSVG(days) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="${height}" viewBox="0 0 1000 ${height}"><rect width="1000" height="${height}" fill="#edf2e7"/><text x="75" y="55" font-family="sans-serif" font-size="22" fill="#71817c">旅程路线 · 顺序示意</text><path d="M115 108V${90 + (stops.length - 1) * 100}" stroke="#6c967c" stroke-width="4" stroke-dasharray="8 7"/>${stops.map((day, i) => `<circle cx="115" cy="${115 + i * 100}" r="22" fill="#173c36"/><text x="115" y="${122 + i * 100}" text-anchor="middle" font-family="sans-serif" font-size="20" fill="white">${i + 1}</text><text x="165" y="${113 + i * 100}" font-family="sans-serif" font-size="28" fill="#173c36">${escapeXML(day.city)}</text><text x="165" y="${143 + i * 100}" font-family="sans-serif" font-size="19" fill="#71817c">DAY ${day.day} · ${day.date}</text>`).join('')}</svg>`;
 }
 
-export async function build(input, output, assetsDirectory) {
+export async function build(input, output, assetsDirectory, platform = 'web') {
+  if (!['web', 'minitool'].includes(platform)) throw new Error('target 只接受 web 或 minitool');
   const data = normalize(input);
   const files = new Map();
   for (const name of ['index.html', 'style.css', 'themes.css', 'time.js', 'themes.js', 'app.js', 'assets/cover.svg', 'assets/placeholder.svg']) files.set(name, await readFile(join(template, name)));
+  files.set('platform.js', await readFile(platform === 'minitool' ? join(template, '../minitool/platform.js') : join(template, 'platform.js')));
   files.set('index.html', files.get('index.html').toString().replace('<html lang="zh-CN">', `<html lang="zh-CN" data-theme="${data.trip.meta.theme}">`));
-  const imagePaths = [data.trip.meta.coverImage, ...data.spots.flatMap(p => [p.image, ...p.souvenirs.map(item => item.image)])].filter(path => !path.startsWith('https:') && !files.has(path));
+  const pictures = [data.trip.meta.coverImage, ...data.spots.flatMap(p => [p.image, ...p.souvenirs.map(item => item.image)])];
+  if (platform === 'minitool' && pictures.some(path => path.startsWith('https:') || /\.avif$/i.test(path))) throw new Error('小工具图片必须为包内 PNG/JPG/WEBP/SVG，不支持远程图片或 AVIF');
+  const imagePaths = pictures.filter(path => !path.startsWith('https:') && !files.has(path));
   for (const path of new Set(imagePaths)) {
     if (!assetsDirectory || !path.startsWith('assets/custom/')) throw new Error(`${path} 缺少素材，请用 assets/custom/文件名 并提供 --assets 素材目录`);
     const base = await realpath(assetsDirectory);
@@ -277,9 +281,11 @@ export async function build(input, output, assetsDirectory) {
   const serialize = value => JSON.stringify(value).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
   files.set('data.js', `window.TRIP=${serialize(data.trip)};\nwindow.JOURNEY=${serialize(data.journey)};\nwindow.SPOTS=${serialize(data.spots)};\nwindow.SPOT_BY_EVENT=${serialize(data.spotsByEvent)};\nwindow.ROUTE_MAP_URL='assets/route.svg';\n`);
   files.set('assets/route.svg', routeSVG(data.trip.days));
-  const worker = await readFile(join(template, 'sw.js'), 'utf8');
-  const cacheVersion = hash(worker + [...files].map(([path, body]) => path + body.toString()).join(''));
-  files.set('sw.js', worker.replace('__CACHE_VERSION__', cacheVersion).replace('__PRECACHE__', JSON.stringify(['./', ...files.keys()])));
+  if (platform === 'web') {
+    const worker = await readFile(join(template, 'sw.js'), 'utf8');
+    const cacheVersion = hash(worker + [...files].map(([path, body]) => path + body.toString()).join(''));
+    files.set('sw.js', worker.replace('__CACHE_VERSION__', cacheVersion).replace('__PRECACHE__', JSON.stringify(['./', ...files.keys()])));
+  }
   const target = resolve(output);
   try {
     if ((await readdir(target)).length) throw new Error('输出目录非空；请换一个新目录，避免覆盖已有网页');
@@ -293,14 +299,14 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   try {
     const args = process.argv.slice(2), options = {};
     if (!args.length || args.includes('--help')) {
-      console.log('node scripts/build.mjs --input trip.json --output 新目录 [--assets 图片目录]');
+      console.log('node scripts/build.mjs --input trip.json --output 新目录 [--assets 图片目录] [--target web|minitool]');
     } else {
       for (let i = 0; i < args.length; i += 2) {
-        if (!['--input', '--output', '--assets'].includes(args[i]) || !args[i + 1] || args[i + 1].startsWith('--')) throw new Error('参数格式错误，使用 --help 查看用法');
+        if (!['--input', '--output', '--assets', '--target'].includes(args[i]) || !args[i + 1] || args[i + 1].startsWith('--')) throw new Error('参数格式错误，使用 --help 查看用法');
         options[args[i].slice(2)] = args[i + 1];
       }
       if (!options.input || !options.output) throw new Error('必须提供 --input 和 --output');
-      const result = await build(JSON.parse(await readFile(options.input, 'utf8')), options.output, options.assets);
+      const result = await build(JSON.parse(await readFile(options.input, 'utf8')), options.output, options.assets, options.target);
       console.log(`已生成 ${result.days} 天旅行手册：${result.output}（${result.files} 个文件）`);
     }
   } catch (error) { console.error(error.message); process.exitCode = 1; }

@@ -1,6 +1,6 @@
 const CACHE_PREFIX = `travel-handbook:${self.registration.scope}:`;
-const CACHE = CACHE_PREFIX + 'ccc7d41b8871';
-const FILES = ["./","index.html","style.css","themes.css","time.js","themes.js","app.js","assets/cover.svg","assets/placeholder.svg","data.js","assets/route.svg"];
+const CACHE = CACHE_PREFIX + '6ab0cfc869a7';
+const FILES = ["./","index.html","style.css","themes.css","time.js","themes.js","app.js","assets/cover.svg","assets/placeholder.svg","platform.js","data.js","assets/route.svg"];
 self.addEventListener('install', event => event.waitUntil(
   caches.open(CACHE).then(cache => cache.addAll(FILES.map(path => new Request(path, {cache: 'reload'})))).then(() => self.skipWaiting())
 ));

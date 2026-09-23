@@ -10,6 +10,7 @@
   <script src="time.js" defer></script>
   <script src="themes.js" defer></script>
   <script src="data.js" defer></script>
+  <script src="platform.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
@@ -28,7 +29,7 @@
     <div id="simulation-banner" class="simulation-banner" hidden></div>
   </div>
   <main id="content" tabindex="-1"><div class="workspace"><section id="panel" role="tabpanel" aria-label="出发准备"></section><aside id="sidebar"></aside></div></main>
-  <footer><span id="source-note"></span><a id="source-document-link" class="footer-link" target="_blank" rel="noopener" hidden>打开原攻略 ↗</a><span data-sync-status role="status" aria-live="polite">待办与门票状态仅保存到本机</span><span id="offline-status">正在检查离线缓存</span></footer>
+  <footer><span id="source-note"></span><span id="source-document-link" hidden></span><span data-sync-status role="status" aria-live="polite">待办与门票状态仅保存到本机</span><span id="offline-status">正在检查离线缓存</span></footer>
   <div id="tools-backdrop" class="tools-backdrop" data-action="close-tools" hidden></div>
   <div class="floating-tools" aria-label="旅行工具">
         <section class="floating-panel role-panel" id="role-panel" aria-labelledby="role-panel-title" hidden>
@@ -79,9 +80,9 @@
     </div>
   </dialog>
   <dialog id="copy-location-dialog" aria-labelledby="copy-location-title">
-    <div class="dialog-title"><h2 id="copy-location-title">复制地点</h2><form method="dialog"><button class="icon-button" aria-label="关闭复制地点">×</button></form></div>
-    <p class="muted">未能自动复制，请长按下方文字选择复制；电脑可按 Ctrl/Cmd+C。</p>
-    <label for="copy-location-value">地点与已有地址</label>
+    <div class="dialog-title"><h2 id="copy-location-title">复制文本</h2><form method="dialog"><button class="icon-button" aria-label="关闭复制文本">×</button></form></div>
+    <p class="muted">选中下方文字后复制；电脑可按 Ctrl/Cmd+C。</p>
+    <label for="copy-location-value">地点或参考资料</label>
     <textarea id="copy-location-value" rows="3" readonly></textarea>
   </dialog>
   <dialog id="route-map-dialog" aria-labelledby="route-map-title">
