@@ -277,8 +277,8 @@ export async function build(input, output, assetsDirectory) {
   const serialize = value => JSON.stringify(value).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
   files.set('data.js', `window.TRIP=${serialize(data.trip)};\nwindow.JOURNEY=${serialize(data.journey)};\nwindow.SPOTS=${serialize(data.spots)};\nwindow.SPOT_BY_EVENT=${serialize(data.spotsByEvent)};\nwindow.ROUTE_MAP_URL='assets/route.svg';\n`);
   files.set('assets/route.svg', routeSVG(data.trip.days));
-  const cacheVersion = hash([...files].map(([path, body]) => path + body.toString()).join(''));
   const worker = await readFile(join(template, 'sw.js'), 'utf8');
+  const cacheVersion = hash(worker + [...files].map(([path, body]) => path + body.toString()).join(''));
   files.set('sw.js', worker.replace('__CACHE_VERSION__', cacheVersion).replace('__PRECACHE__', JSON.stringify(['./', ...files.keys()])));
   const target = resolve(output);
   try {

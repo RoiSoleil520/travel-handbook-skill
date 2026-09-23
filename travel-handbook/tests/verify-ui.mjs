@@ -16,6 +16,7 @@ const temporary = await mkdtemp(join(tmpdir(), 'travel-handbook-ui-'));
 const screenshotDir = process.env.TRIP_UI_SCREENSHOT_DIR;
 const mime = {'.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.json': 'application/json'};
 let browser, server;
+let cacheRevision = 0;
 
 async function toolsMenu(page) {
   await page.waitForFunction(vertical => document.querySelector('.tabs').getAttribute('aria-orientation') === (vertical ? 'vertical' : 'horizontal'), page.viewportSize().width >= 1100);
@@ -126,8 +127,16 @@ try {
       const path = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
       const file = resolve(temporary, `.${path.endsWith('/') ? `${path}index.html` : path}`);
       if (!file.startsWith(temporary + sep)) { response.writeHead(403).end(); return; }
-      const body = await readFile(file);
-      response.writeHead(200, {'Content-Type': mime[extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-store'}).end(body);
+      let body = await readFile(file);
+      let cacheControl = 'no-store';
+      if (cacheRevision && path === '/full/style.css') {
+        body = `${body}\n:root { --ui-cache-revision: ${cacheRevision}; }`;
+        cacheControl = 'max-age=3600';
+      }
+      if (cacheRevision && path === '/full/sw.js') {
+        body = body.toString().replace(/const CACHE = CACHE_PREFIX \+ '[^']+';/, `const CACHE = CACHE_PREFIX + 'ui-cache-${cacheRevision}';`);
+      }
+      response.writeHead(200, {'Content-Type': mime[extname(file)] || 'application/octet-stream', 'Cache-Control': cacheControl}).end(body);
     } catch { response.writeHead(404).end(); }
   });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
@@ -660,11 +669,20 @@ try {
     assert.match(await page.locator('#zone-label').innerText(), /Tokyo/);
   });
 
-  await scenario('cached site reloads and remains usable offline', 'full', during, async (page, context) => {
+  cacheRevision = 1;
+  await scenario('cached site updates HTTP-cached assets and remains usable offline', 'full', during, async (page, context) => {
     await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
     await page.waitForFunction(() => document.querySelector('#offline-status').textContent.includes('离线内容已就绪'));
+    const cssRevision = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--ui-cache-revision').trim());
+    assert.equal(await cssRevision(), '1', 'The initial stylesheet is stored in the HTTP cache');
+    const oldWorker = await page.evaluateHandle(() => navigator.serviceWorker.controller);
+    cacheRevision = 2;
+    await page.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
+    await page.waitForFunction(previous => navigator.serviceWorker.controller && navigator.serviceWorker.controller !== previous, oldWorker);
+    await oldWorker.dispose();
     await context.setOffline(true);
     await page.reload({waitUntil: 'load'}); await enter(page);
+    assert.equal(await cssRevision(), '2', 'An updated worker caches fresh CSS even while the old HTTP response is still fresh');
     await page.locator('#dates [data-day="1"]').click();
     await tab(page, 'overview');
     assert.equal(await page.locator('.overview-day').count(), model.trip.days.length);

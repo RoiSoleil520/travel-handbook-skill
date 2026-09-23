@@ -2,7 +2,7 @@ const CACHE_PREFIX = `travel-handbook:${self.registration.scope}:`;
 const CACHE = CACHE_PREFIX + '__CACHE_VERSION__';
 const FILES = __PRECACHE__;
 self.addEventListener('install', event => event.waitUntil(
-  caches.open(CACHE).then(cache => cache.addAll(FILES)).then(() => self.skipWaiting())
+  caches.open(CACHE).then(cache => cache.addAll(FILES.map(path => new Request(path, {cache: 'reload'})))).then(() => self.skipWaiting())
 ));
 self.addEventListener('activate', event => event.waitUntil((async () => {
   for (const key of await caches.keys()) if (key.startsWith(CACHE_PREFIX) && key !== CACHE) await caches.delete(key);
